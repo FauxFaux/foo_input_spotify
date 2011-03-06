@@ -10,12 +10,12 @@
 */
 
 #define _WIN32_WINNT 0x0501
+
 #include <foobar2000.h>
 
 #include "../helpers/dropdown_helper.h"
-#include "../ATLHelpers/ATLHelpers.h"
 
-#include "kdmeng.h"
+#include "spotifyeng.h"
 
 #include "resource.h"
 
@@ -175,6 +175,7 @@ static cfg_dropdown_history cfg_history_rate( guid_cfg_history_rate, 16 );
 
 static const int srate_tab[]={8000,11025,16000,22050,24000,32000,44100,48000};
 
+#if 0
 class CMyPreferences : public CDialogImpl<CMyPreferences>, public preferences_page_instance {
 public:
 	//Constructor - invoked by preferences_page_impl helpers - don't do Create() in here, preferences_page_impl does this for us
@@ -299,6 +300,8 @@ public:
 
 static input_singletrack_factory_t< input_kdm >             g_input_factory_kdm;
 static preferences_page_factory_t <preferences_page_myimpl> g_config_dsdiff_factory;
+
+#endif
 
 DECLARE_FILE_TYPE("KDM Files", "*.kdm");
 
