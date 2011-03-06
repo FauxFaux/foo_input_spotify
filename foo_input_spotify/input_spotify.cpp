@@ -167,7 +167,7 @@ public:
 
 	static bool g_is_our_path( const char * p_full_path, const char * p_extension )
 	{
-		return !stricmp( p_extension, "kdm" );
+		return !strncmp( p_full_path, "spotify:", strlen("spotify:") );
 	}
 };
 
@@ -298,13 +298,11 @@ public:
 	GUID get_parent_guid() {return guid_input;}
 };
 
-static input_singletrack_factory_t< input_kdm >             g_input_factory_kdm;
+
 static preferences_page_factory_t <preferences_page_myimpl> g_config_dsdiff_factory;
 
 #endif
 
-DECLARE_FILE_TYPE("KDM Files", "*.kdm");
+static input_singletrack_factory_t< input_kdm >             g_input_factory_kdm;
 
-DECLARE_COMPONENT_VERSION("KDM Decoder", MYVERSION, "Decodes Ken Silverman's KDM music files.");
-
-VALIDATE_COMPONENT_FILENAME("foo_input_kdm.dll");
+DECLARE_COMPONENT_VERSION("Spotify Decoder", MYVERSION, "Support for spotify: urls.");
