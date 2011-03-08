@@ -39,16 +39,19 @@ sp_track *g_currenttrack = NULL;
 volatile bool doNotify = false;
 volatile bool playbackDone = false;
 volatile bool failed = false;
+extern "C" {
 
+struct Gentry {
+    SLIST_ENTRY item;
+	void *data;
+    size_t size;
+	int sampleRate;
+	int channels;
+};
 
-volatile bool filled = false;
-CONDITION_VARIABLE bufferNotEmpty;
-CONDITION_VARIABLE bufferNotFull;
-CRITICAL_SECTION   bufferLock;
+}
 
-pfc::array_t< t_int16 > sample_buffer;
-volatile int sampleRate = 0;
-volatile int channels = 0;
+SLIST_HEADER *listHead;
 
 void __stdcall log_message(sp_session *sess, const char *error) {
 	printf("%s\n", error);
@@ -82,31 +85,25 @@ int __stdcall music_delivery(sp_session *sess, const sp_audioformat *format,
     if (num_frames == 0)
         return 0; // Audio discontinuity, do nothing
 
-    EnterCriticalSection(&bufferLock);
-
-	if (filled) {
-		//SleepConditionVariableCS (&bufferNotFull, &bufferLock, INFINITE);
-		LeaveCriticalSection(&bufferLock);
+	if (QueryDepthSList(listHead) > 200)
 		return 0;
-	}
 
 	const size_t s = num_frames * sizeof(int16_t) * format->channels;
 
-	sample_buffer.grow_size(s);
+	Gentry *e = (Gentry*)_aligned_malloc(sizeof(Gentry), MEMORY_ALLOCATION_ALIGNMENT);
+	e->data = malloc(s);
+	e->size = s;
+	e->sampleRate = format->sample_rate;
+	e->channels = format->channels;
 
-	memcpy(sample_buffer.get_ptr(), frames, s);
+	memcpy(e->data, frames, s);
 
-	sample_buffer.set_count(num_frames);
+	
+	InterlockedPushEntrySList(listHead, &(e->item));
+	long l = GetLastError();
 
-	sampleRate = format->sample_rate;
-	channels = format->channels;
-	OutputDebugString(L"in");
 
-	filled = true;
-	WakeConditionVariable(&bufferNotEmpty);
-    LeaveCriticalSection(&bufferLock);
-
-    return num_frames;
+	return num_frames;
 }
 
 
@@ -138,9 +135,9 @@ public:
 
 	input_kdm()
 	{
-		InitializeCriticalSection(&bufferLock);
-		InitializeConditionVariable(&bufferNotEmpty);
-		InitializeConditionVariable(&bufferNotFull);
+		listHead = (SLIST_HEADER*)_aligned_malloc(sizeof(SLIST_HEADER), MEMORY_ALLOCATION_ALIGNMENT);
+		InitializeSListHead(listHead);
+
 		spconfig.api_version = SPOTIFY_API_VERSION,
 		spconfig.cache_location = "tmp";
 		spconfig.settings_location = "tmp";
@@ -214,28 +211,24 @@ public:
 
 		notifyStuff();
 
-		EnterCriticalSection(&bufferLock);
+		Gentry *e;
+		while (NULL == (e = (Gentry*) InterlockedPopEntrySList(listHead)))
+			Sleep(1); // sigh
 
-		while (!filled) {
-			SleepConditionVariableCS (&bufferNotEmpty, &bufferLock, 1);
-			LeaveCriticalSection(&bufferLock);
-			notifyStuff();
-			EnterCriticalSection(&bufferLock);
-		}
+		size_t s = e->size;
+		int sr = e->sampleRate;
+		void *d = e->data;
 
 		p_chunk.set_data_fixedpoint(
-			sample_buffer.get_ptr(), 
-			sample_buffer.get_count() * sizeof(int16_t) * channels,
-			sampleRate,
-			channels,
+			e->data,
+			e->size,
+			e->sampleRate,
+			e->channels,
 			16,
 			audio_chunk::channel_config_stereo);
 
-		OutputDebugString(L"out");
-
-		filled = false;
-
-		LeaveCriticalSection(&bufferLock);
+		free(e->data);
+		_aligned_free(e);
 
 		return true;
 	}
