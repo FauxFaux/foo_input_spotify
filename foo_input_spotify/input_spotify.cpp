@@ -32,12 +32,9 @@ sp_session *sp;
 sp_error err;
 
 
-int g_notify_do;
-int g_playback_done;
-sp_session *g_sess;
-sp_playlist *g_jukeboxlist;
-sp_track *g_currenttrack;
-int g_track_index;
+sp_session *g_sess = NULL;
+sp_playlist *g_jukeboxlist = NULL;
+sp_track *g_currenttrack = NULL;
 
 volatile bool doNotify = false;
 volatile bool playbackDone = false;
@@ -52,6 +49,18 @@ CRITICAL_SECTION   bufferLock;
 pfc::array_t< t_int16 > sample_buffer;
 volatile int sampleRate = 0;
 volatile int channels = 0;
+
+void __stdcall log_message(sp_session *sess, const char *error) {
+	printf("%s\n", error);
+}
+
+void __stdcall message_to_user(sp_session *sess, const char *error) {
+	printf("%s\n", error);
+}
+
+void __stdcall start_playback(sp_session *sess) {
+	return;
+}
 
 void __stdcall logged_in(sp_session *sess, sp_error error)
 {
@@ -91,7 +100,9 @@ int __stdcall music_delivery(sp_session *sess, const sp_audioformat *format,
 
 	sampleRate = format->sample_rate;
 	channels = format->channels;
+	OutputDebugString(L"in");
 
+	filled = true;
 	WakeConditionVariable(&bufferNotEmpty);
     LeaveCriticalSection(&bufferLock);
 
@@ -109,6 +120,15 @@ void __stdcall play_token_lost(sp_session *sess)
 	failed = true;
 }
 
+void notifyStuff() {
+	if (doNotify) {
+		int next_timeout;
+		do {
+			sp_session_process_events(sp, &next_timeout);
+		} while (next_timeout == 0);
+		doNotify = false;
+	}
+}
 
 class input_kdm
 {
@@ -118,6 +138,9 @@ public:
 
 	input_kdm()
 	{
+		InitializeCriticalSection(&bufferLock);
+		InitializeConditionVariable(&bufferNotEmpty);
+		InitializeConditionVariable(&bufferNotFull);
 		spconfig.api_version = SPOTIFY_API_VERSION,
 		spconfig.cache_location = "tmp";
 		spconfig.settings_location = "tmp";
@@ -131,12 +154,17 @@ public:
 		session_callbacks.music_delivery = &music_delivery;
 		session_callbacks.play_token_lost = &play_token_lost;
 		session_callbacks.end_of_track = &end_of_track;
-
+		session_callbacks.log_message = &log_message;
+		session_callbacks.message_to_user = &message_to_user;
+		session_callbacks.start_playback = &start_playback;
+		
 		err = sp_session_create(&spconfig, &sp);
 
 		if (SP_ERROR_OK != err) {
 			throw new pfc::exception("Couldn't create spotify session");
 		}
+		
+		sp_session_login(sp, "fauxfaux", "penises");
 	}
 
 	~input_kdm()
@@ -160,14 +188,20 @@ public:
 
 	void decode_initialize( unsigned p_flags, abort_callback & p_abort )
 	{
-		//loop_count = cfg_loop_count;
-		//if ( p_flags & input_flag_no_looping && !loop_count ) loop_count++;
-
-		//m_player->musicoff();
-		//m_player->musicon();
-
-		//first_block = true;
-		//eof = false;
+		while (!g_sess) {
+			notifyStuff();
+			Sleep(500);
+		}
+		sp_link *link = sp_link_create_from_string("spotify:track:3ZDWOVWbiFBXR175n2x7xU");
+		sp_track *t = sp_link_as_track(link);
+		while (SP_ERROR_OK != sp_track_error(t)) {
+			Sleep(500);
+			notifyStuff();
+		}
+		const char *name = sp_track_name(t);
+		printf("jukebox: Now playing \"%s\"...\n", name);
+		sp_session_player_load(g_sess, t);
+		sp_session_player_play(g_sess, 1);
 	}
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
@@ -178,24 +212,30 @@ public:
 		if (playbackDone)
 			return false;
 
-		{
-			int next_timeout;
-			do {
-				sp_session_process_events(sp, &next_timeout);
-			} while (next_timeout == 0);
+		notifyStuff();
+
+		EnterCriticalSection(&bufferLock);
+
+		while (!filled) {
+			SleepConditionVariableCS (&bufferNotEmpty, &bufferLock, 1);
+			LeaveCriticalSection(&bufferLock);
+			notifyStuff();
+			EnterCriticalSection(&bufferLock);
 		}
 
-		//if ( eof ) return false;
+		p_chunk.set_data_fixedpoint(
+			sample_buffer.get_ptr(), 
+			sample_buffer.get_count() * sizeof(int16_t) * channels,
+			sampleRate,
+			channels,
+			16,
+			audio_chunk::channel_config_stereo);
 
-		//unsigned samples_to_do = srate / 120;
+		OutputDebugString(L"out");
 
-		//sample_buffer.grow_size( samples_to_do * 2 );
+		filled = false;
 
-		//long repeatcount = m_player->rendersound( sample_buffer.get_ptr(), samples_to_do * 4 );
-
-		//p_chunk.set_data_fixedpoint( sample_buffer.get_ptr(), samples_to_do * 4, srate, 2, 16, audio_chunk::channel_config_stereo );
-
-		//if ( loop_count && repeatcount >= loop_count ) eof = true;
+		LeaveCriticalSection(&bufferLock);
 
 		return true;
 	}
