@@ -128,11 +128,11 @@ void __stdcall play_token_lost(sp_session *sess)
 
 void notifyStuff() {
 	if (doNotify) {
+		doNotify = false;
 		int next_timeout;
 		do {
 			sp_session_process_events(sp, &next_timeout);
 		} while (next_timeout == 0);
-		doNotify = false;
 	}
 }
 
