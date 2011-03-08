@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="input_spotify.cpp" />
+    <ClCompile Include="key-930.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{02F13FAE-C9D9-4C70-A691-582C3B49B15C}</ProjectGuid>
@@ -40,11 +41,11 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>..\foobar-sdk\foobar2000\sdk;$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSdkDir)include;$(FrameworkSDKDir)\include;</IncludePath>
+    <IncludePath>..\libspotify\include;..\foobar-sdk\foobar2000\sdk;$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSdkDir)include;$(FrameworkSDKDir)\include</IncludePath>
     <OutDir>..\foobar2000\user-components\$(TargetName)\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>..\foobar-sdk\foobar2000\sdk;$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSdkDir)include;$(FrameworkSDKDir)\include;</IncludePath>
+    <IncludePath>..\libspotify\include;..\foobar-sdk\foobar2000\sdk;$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSdkDir)include;$(FrameworkSDKDir)\include</IncludePath>
     <OutDir>..\foobar2000\user-components\$(TargetName)\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -54,7 +55,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>..\foobar-sdk\foobar2000\shared\shared.lib;..\foobar-sdk\foobar2000\SDK\$(Configuration)\foobar2000_sdk.lib;..\foobar-sdk\foobar2000\foobar2000_component_client\$(Configuration)\foobar2000_component_client.lib;..\$(Configuration)\pfc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\foobar-sdk\foobar2000\shared\shared.lib;..\foobar-sdk\foobar2000\SDK\$(Configuration)\foobar2000_sdk.lib;..\foobar-sdk\foobar2000\foobar2000_component_client\$(Configuration)\foobar2000_component_client.lib;..\$(Configuration)\pfc.lib;..\libspotify\lib\libspotify.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
     </Link>
   </ItemDefinitionGroup>
@@ -69,7 +70,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>..\foobar-sdk\foobar2000\shared\shared.lib;..\foobar-sdk\foobar2000\SDK\$(Configuration)\foobar2000_sdk.lib;..\foobar-sdk\foobar2000\foobar2000_component_client\$(Configuration)\foobar2000_component_client.lib;..\$(Configuration)\pfc.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\foobar-sdk\foobar2000\shared\shared.lib;..\foobar-sdk\foobar2000\SDK\$(Configuration)\foobar2000_sdk.lib;..\foobar-sdk\foobar2000\foobar2000_component_client\$(Configuration)\foobar2000_component_client.lib;..\$(Configuration)\pfc.lib;..\libspotify\lib\libspotify.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
     </Link>
   </ItemDefinitionGroup>
