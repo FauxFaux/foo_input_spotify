@@ -39,19 +39,23 @@ sp_track *g_currenttrack = NULL;
 volatile bool doNotify = false;
 volatile bool playbackDone = false;
 volatile bool failed = false;
-extern "C" {
 
 struct Gentry {
-    SLIST_ENTRY item;
 	void *data;
     size_t size;
 	int sampleRate;
 	int channels;
 };
 
-}
+size_t entries = 0;
+size_t ptr = 0;
 
-SLIST_HEADER *listHead;
+const size_t MAX_ENTRIES = 255;
+
+Gentry *entry[MAX_ENTRIES];
+
+CONDITION_VARIABLE bufferNotEmpty;
+CRITICAL_SECTION   bufferLock;
 
 void __stdcall log_message(sp_session *sess, const char *error) {
 	printf("%s\n", error);
@@ -85,23 +89,28 @@ int __stdcall music_delivery(sp_session *sess, const sp_audioformat *format,
     if (num_frames == 0)
         return 0; // Audio discontinuity, do nothing
 
-	if (QueryDepthSList(listHead) > 200)
+	EnterCriticalSection(&bufferLock);
+
+	if (entries >= MAX_ENTRIES) {
+		LeaveCriticalSection(&bufferLock);
 		return 0;
+	}
 
 	const size_t s = num_frames * sizeof(int16_t) * format->channels;
 
-	Gentry *e = (Gentry*)_aligned_malloc(sizeof(Gentry), MEMORY_ALLOCATION_ALIGNMENT);
-	e->data = malloc(s);
+	Gentry *e = new Gentry;
+	e->data = new char[s];
 	e->size = s;
 	e->sampleRate = format->sample_rate;
 	e->channels = format->channels;
 
 	memcpy(e->data, frames, s);
 
-	
-	InterlockedPushEntrySList(listHead, &(e->item));
-	long l = GetLastError();
+	entry[(ptr + entries) % MAX_ENTRIES] = e;
+	++entries;
 
+	LeaveCriticalSection(&bufferLock);
+	WakeConditionVariable(&bufferNotEmpty);
 
 	return num_frames;
 }
@@ -135,8 +144,8 @@ public:
 
 	input_kdm()
 	{
-		listHead = (SLIST_HEADER*)_aligned_malloc(sizeof(SLIST_HEADER), MEMORY_ALLOCATION_ALIGNMENT);
-		InitializeSListHead(listHead);
+		InitializeConditionVariable (&bufferNotEmpty);
+		InitializeCriticalSection (&bufferLock);
 
 		spconfig.api_version = SPOTIFY_API_VERSION,
 		spconfig.cache_location = "tmp";
@@ -211,13 +220,22 @@ public:
 
 		notifyStuff();
 
-		Gentry *e;
-		while (NULL == (e = (Gentry*) InterlockedPopEntrySList(listHead)))
-			Sleep(1); // sigh
+		EnterCriticalSection(&bufferLock);
 
-		size_t s = e->size;
-		int sr = e->sampleRate;
-		void *d = e->data;
+		while (entries == 0) {
+			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock, 100);
+			LeaveCriticalSection(&bufferLock);
+			notifyStuff();
+			EnterCriticalSection(&bufferLock);
+		}
+
+
+		Gentry *e = entry[ptr++];
+
+		--entries;
+
+		if (MAX_ENTRIES == ptr)
+			ptr = 0;
 
 		p_chunk.set_data_fixedpoint(
 			e->data,
@@ -227,8 +245,10 @@ public:
 			16,
 			audio_chunk::channel_config_stereo);
 
-		free(e->data);
-		_aligned_free(e);
+		delete[] e->data;
+		delete e;
+
+		LeaveCriticalSection(&bufferLock);
 
 		return true;
 	}
