@@ -1,16 +1,6 @@
 #define MYVERSION "0.1"
 
-/*
-	changelog
-
-2010-06-20 07:05 UTC - kode54
-- Initial release
-- Version is now 1.0
-
-*/
-
-#define _WIN32_WINNT 0x0501
-#include <functional>
+#define _WIN32_WINNT 0x0600
 
 #include <foobar2000.h>
 #include <libspotify/api.h>
@@ -21,6 +11,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 extern "C" {
 	extern const uint8_t g_appkey[];
 	extern const size_t g_appkey_size;
@@ -28,11 +19,8 @@ extern "C" {
 
 static sp_session_callbacks session_callbacks = {};
 static sp_session_config spconfig = {};
-sp_session *sp;
 sp_error err;
 
-
-sp_session *g_sess = NULL;
 sp_playlist *g_jukeboxlist = NULL;
 sp_track *g_currenttrack = NULL;
 
@@ -57,33 +45,121 @@ Gentry *entry[MAX_ENTRIES];
 CONDITION_VARIABLE bufferNotEmpty;
 CRITICAL_SECTION   bufferLock;
 
-void __stdcall log_message(sp_session *sess, const char *error) {
+void CALLBACK log_message(sp_session *sess, const char *error);
+void CALLBACK message_to_user(sp_session *sess, const char *error);
+void CALLBACK start_playback(sp_session *sess);
+void CALLBACK logged_in(sp_session *sess, sp_error error);
+void CALLBACK notify_main_thread(sp_session *sess);
+int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format, const void *frames, int num_frames);
+void CALLBACK end_of_track(sp_session *sess);
+void CALLBACK play_token_lost(sp_session *sess);
+
+BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context);
+
+class SpotifySession {
+	INIT_ONCE initOnce;
+	sp_session *sp;
+	HANDLE loggedInEvent;
+public:
+
+	SpotifySession() : loggedInEvent(CreateEvent(NULL, TRUE, FALSE, NULL)) {
+		memset(&initOnce, 0, sizeof(INIT_ONCE));
+
+		spconfig.api_version = SPOTIFY_API_VERSION,
+		spconfig.cache_location = "tmp";
+		spconfig.settings_location = "tmp";
+		spconfig.application_key = g_appkey;
+		spconfig.application_key_size = g_appkey_size;
+		spconfig.user_agent = "spotify-foobar2000-faux-" MYVERSION;
+		spconfig.userdata = this;
+		spconfig.callbacks = &session_callbacks;
+
+		session_callbacks.logged_in = &logged_in;
+		session_callbacks.notify_main_thread = &notify_main_thread;
+		session_callbacks.music_delivery = &music_delivery;
+		session_callbacks.play_token_lost = &play_token_lost;
+		session_callbacks.end_of_track = &end_of_track;
+		session_callbacks.log_message = &log_message;
+		session_callbacks.message_to_user = &message_to_user;
+		session_callbacks.start_playback = &start_playback;
+
+		sp_error err = sp_session_create(&spconfig, &sp);
+
+		if (SP_ERROR_OK != err) {
+			throw new pfc::exception("Couldn't create spotify session");
+		}
+	}
+
+	~SpotifySession() {
+		CloseHandle(loggedInEvent);
+	}
+
+	sp_session *getAnyway() {
+		return sp;
+	}
+
+	sp_session *get() {
+		InitOnceExecuteOnce(&initOnce,
+			makeSpotifySession,
+			NULL,
+			NULL);
+		return getAnyway();
+	}
+
+	void waitForLogin() {
+		while (WAIT_OBJECT_0 != WaitForSingleObject(loggedInEvent, 100))
+			notifyStuff();
+	}
+
+	void notifyStuff() {
+		if (doNotify) {
+			doNotify = false;
+			int next_timeout;
+			do {
+				sp_session_process_events(getAnyway(), &next_timeout);
+			} while (next_timeout == 0);
+		}
+	}
+
+	void loggedIn(sp_error err) {
+		// XXX err
+		SetEvent(loggedInEvent);
+	}
+} ss;
+
+BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context) {
+	sp_session_login(ss.getAnyway(), "fauxfaux", "penises");
+	ss.waitForLogin();
+	return TRUE;
+}
+
+SpotifySession *getSession(void *param) {
+	return static_cast<SpotifySession *>(sp_session_userdata(static_cast<sp_session*>(param)));
+}
+
+void CALLBACK log_message(sp_session *sess, const char *error) {
 	printf("%s\n", error);
 }
 
-void __stdcall message_to_user(sp_session *sess, const char *error) {
+void CALLBACK message_to_user(sp_session *sess, const char *error) {
 	printf("%s\n", error);
 }
 
-void __stdcall start_playback(sp_session *sess) {
+void CALLBACK start_playback(sp_session *sess) {
 	return;
 }
 
-void __stdcall logged_in(sp_session *sess, sp_error error)
+void CALLBACK logged_in(sp_session *sess, sp_error error)
 {
-	if (SP_ERROR_OK != error) {
-		failed = true;
-    }
-
-	g_sess = sess;
+	ss.loggedIn(error);
 }
 
-void __stdcall notify_main_thread(sp_session *sess)
+void CALLBACK notify_main_thread(sp_session *sess)
 {
     doNotify = true;
 }
 
-int __stdcall music_delivery(sp_session *sess, const sp_audioformat *format,
+int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
                           const void *frames, int num_frames)
 {
     if (num_frames == 0)
@@ -116,61 +192,32 @@ int __stdcall music_delivery(sp_session *sess, const sp_audioformat *format,
 }
 
 
-void __stdcall end_of_track(sp_session *sess)
+void CALLBACK end_of_track(sp_session *sess)
 {
 	playbackDone = true;
 }
 
-void __stdcall play_token_lost(sp_session *sess)
+void CALLBACK play_token_lost(sp_session *sess)
 {
 	failed = true;
-}
-
-void notifyStuff() {
-	if (doNotify) {
-		doNotify = false;
-		int next_timeout;
-		do {
-			sp_session_process_events(sp, &next_timeout);
-		} while (next_timeout == 0);
-	}
 }
 
 class input_kdm
 {
 	t_filestats m_stats;
 
-public:
+	std::string name;
+	std::string artist;
+	std::string album;
+	std::string url;
+	double length;
+	sp_track *t;
 
+public:
 	input_kdm()
 	{
 		InitializeConditionVariable (&bufferNotEmpty);
 		InitializeCriticalSection (&bufferLock);
-
-		spconfig.api_version = SPOTIFY_API_VERSION,
-		spconfig.cache_location = "tmp";
-		spconfig.settings_location = "tmp";
-		spconfig.application_key = g_appkey;
-		spconfig.application_key_size = g_appkey_size;
-		spconfig.user_agent = "spotify-foobar2000-faux-" MYVERSION;
-		spconfig.callbacks = &session_callbacks;
-
-		session_callbacks.logged_in = &logged_in;
-		session_callbacks.notify_main_thread = &notify_main_thread;
-		session_callbacks.music_delivery = &music_delivery;
-		session_callbacks.play_token_lost = &play_token_lost;
-		session_callbacks.end_of_track = &end_of_track;
-		session_callbacks.log_message = &log_message;
-		session_callbacks.message_to_user = &message_to_user;
-		session_callbacks.start_playback = &start_playback;
-		
-		err = sp_session_create(&spconfig, &sp);
-
-		if (SP_ERROR_OK != err) {
-			throw new pfc::exception("Couldn't create spotify session");
-		}
-		
-		sp_session_login(sp, "fauxfaux", "penises");
 	}
 
 	~input_kdm()
@@ -180,11 +227,31 @@ public:
 	void open( service_ptr_t<file> m_file, const char * p_path, t_input_open_reason p_reason, abort_callback & p_abort )
 	{
 		if ( p_reason == input_open_info_write ) throw exception_io_data();
+		url = p_path;
+
+		ss.get();
+
+		sp_link *link = sp_link_create_from_string(p_path);
+		if (NULL == link)
+			throw exception_io_data("couldn't parse url");
+
+		t = sp_link_as_track(link);
+		if (NULL == t)
+			throw exception_io_data("url not a track");
+
+		while (SP_ERROR_OK != sp_track_error(t)) {
+			Sleep(50);
+			ss.notifyStuff();
+		}
 	}
 
 	void get_info( file_info & p_info, abort_callback & p_abort )
 	{
-		p_info.set_length(1337);
+		p_info.set_length(sp_track_duration(t)/1000.0);
+		p_info.meta_add("ARTIST", sp_artist_name(sp_track_artist(t, 0)));
+		p_info.meta_add("ALBUM", sp_album_name(sp_track_album(t)));
+		p_info.meta_add("TITLE", sp_track_name(t));
+		p_info.meta_add("URL", url.c_str());
 	}
 
 	t_filestats get_file_stats( abort_callback & p_abort )
@@ -194,20 +261,8 @@ public:
 
 	void decode_initialize( unsigned p_flags, abort_callback & p_abort )
 	{
-		while (!g_sess) {
-			notifyStuff();
-			Sleep(500);
-		}
-		sp_link *link = sp_link_create_from_string("spotify:track:3ZDWOVWbiFBXR175n2x7xU");
-		sp_track *t = sp_link_as_track(link);
-		while (SP_ERROR_OK != sp_track_error(t)) {
-			Sleep(500);
-			notifyStuff();
-		}
-		const char *name = sp_track_name(t);
-		printf("jukebox: Now playing \"%s\"...\n", name);
-		sp_session_player_load(g_sess, t);
-		sp_session_player_play(g_sess, 1);
+		sp_session_player_load(ss.get(), t);
+		sp_session_player_play(ss.get(), 1);
 	}
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
@@ -218,14 +273,14 @@ public:
 		if (playbackDone)
 			return false;
 
-		notifyStuff();
+		ss.notifyStuff();
 
 		EnterCriticalSection(&bufferLock);
 
 		while (entries == 0) {
 			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock, 100);
 			LeaveCriticalSection(&bufferLock);
-			notifyStuff();
+			ss.notifyStuff();
 			EnterCriticalSection(&bufferLock);
 		}
 
