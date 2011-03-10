@@ -4,3 +4,6 @@
 [submodule "foobar-sdk"]
 	path = foobar-sdk
 	url = git://git.goeswhere.com/git/foobar-sdk.git
+[submodule "foobar2000"]
+	path = foobar2000
+	url = git://git.goeswhere.com/git/foobar2000.git
