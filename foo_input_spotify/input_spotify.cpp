@@ -377,16 +377,12 @@ public:
 
 	void decode_seek( double p_seconds,abort_callback & p_abort )
 	{
-		long seek_ms = audio_math::time_to_samples( p_seconds, 1000 );
-
-		//m_player->seek( seek_ms );
-
-		//first_block = true;
+		sp_session_player_seek(ss.get(), p_seconds*1000);
 	}
 
 	bool decode_can_seek()
 	{
-		return false;
+		return true;
 	}
 
 	bool decode_get_dynamic_info( file_info & p_out, double & p_timestamp_delta )
