@@ -7,7 +7,7 @@
 
 #include "../helpers/dropdown_helper.h"
 #include <functional>
-#include <libspotify/api.h>
+#include <shlobj.h>
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -17,15 +17,7 @@ extern "C" {
 	extern const size_t g_appkey_size;
 }
 
-static sp_session_callbacks session_callbacks = {};
-static sp_session_config spconfig = {};
-sp_error err;
-
-sp_playlist *g_jukeboxlist = NULL;
-sp_track *g_currenttrack = NULL;
-
 volatile bool doNotify = false;
-volatile bool playbackDone = false;
 volatile bool failed = false;
 
 struct Gentry {
@@ -144,9 +136,22 @@ public:
 	SpotifySession() : loggedInEvent(CreateEvent(NULL, TRUE, FALSE, NULL)) {
 		memset(&initOnce, 0, sizeof(INIT_ONCE));
 
+		static sp_session_callbacks session_callbacks = {};
+		static sp_session_config spconfig = {};
+
+		PWSTR path;
+		if (SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &path))
+			throw pfc::exception("couldn't get local app data path");
+		size_t num;
+		char lpath[MAX_PATH];
+		if (wcstombs_s(&num, lpath, MAX_PATH, path, MAX_PATH))
+			throw pfc::exception("couldn't convert local app data path");
+		if (strcat_s(lpath, "\\foo_input_spotify"))
+			throw pfc::exception("couldn't append to path");
+
 		spconfig.api_version = SPOTIFY_API_VERSION,
-		spconfig.cache_location = "tmp";
-		spconfig.settings_location = "tmp";
+		spconfig.cache_location = lpath;
+		spconfig.settings_location = lpath;
 		spconfig.application_key = g_appkey;
 		spconfig.application_key_size = g_appkey_size;
 		spconfig.user_agent = "spotify-foobar2000-faux-" MYVERSION;
@@ -165,7 +170,7 @@ public:
 		sp_error err = sp_session_create(&spconfig, &sp);
 
 		if (SP_ERROR_OK != err) {
-			throw new pfc::exception("Couldn't create spotify session");
+			throw pfc::exception("Couldn't create spotify session");
 		}
 	}
 
@@ -252,7 +257,7 @@ int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
 	
 	if (num_frames == 0) {
 		ss->buf.flush();
-        return 0; // Audio discontinuity, do nothing
+        return 0;
 	}
 
 	if (ss->buf.isFull()) {
