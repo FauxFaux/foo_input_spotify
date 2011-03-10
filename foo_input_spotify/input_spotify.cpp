@@ -295,13 +295,6 @@ class InputSpotify
 	int sampleRate;
 
 public:
-	InputSpotify()
-	{
-	}
-
-	~InputSpotify()
-	{
-	}
 
 	void open( service_ptr_t<file> m_file, const char * p_path, t_input_open_reason p_reason, abort_callback & p_abort )
 	{
