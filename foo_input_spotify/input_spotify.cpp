@@ -35,15 +35,81 @@ struct Gentry {
 	int channels;
 };
 
-size_t entries = 0;
-size_t ptr = 0;
+class SpotifySession;
 
-const size_t MAX_ENTRIES = 255;
+void stuffNotify(SpotifySession *ss);
 
-Gentry *entry[MAX_ENTRIES];
+struct Buffer {
 
-CONDITION_VARIABLE bufferNotEmpty;
-CRITICAL_SECTION   bufferLock;
+	size_t entries;
+	size_t ptr;
+
+	static const size_t MAX_ENTRIES = 255;
+
+	Gentry *entry[MAX_ENTRIES];
+
+	CONDITION_VARIABLE bufferNotEmpty;
+	CRITICAL_SECTION   bufferLock;
+
+	Buffer() : entries(0), ptr(0) {
+		InitializeConditionVariable(&bufferNotEmpty);
+		InitializeCriticalSection(&bufferLock);
+	}
+
+	~Buffer() {
+		flush();
+		DeleteCriticalSection(&bufferLock);
+	}
+
+	void add(void *data, size_t size, int sampleRate, int channels) {
+		Gentry *e = new Gentry;
+		e->data = data;
+		e->size = size;
+		e->sampleRate = sampleRate;
+		e->channels = channels;
+
+		EnterCriticalSection(&bufferLock);
+		{
+			entry[(ptr + entries) % MAX_ENTRIES] = e;
+			++entries;
+		}
+		LeaveCriticalSection(&bufferLock);
+		WakeConditionVariable(&bufferNotEmpty);
+
+	}
+
+	bool isFull() {
+		return entries >= MAX_ENTRIES;
+	}
+
+	void flush() {
+		while (entries >= 0)
+			free(take(NULL));
+	}
+
+	Gentry *take(SpotifySession *ss) {
+		EnterCriticalSection(&bufferLock);
+		while (entries == 0) {
+			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock, 5000);
+
+			if (ss)
+				stuffNotify(ss);
+		}
+
+		Gentry *e = entry[ptr++];
+		--entries;
+		if (MAX_ENTRIES == ptr)
+			ptr = 0;
+
+		LeaveCriticalSection(&bufferLock);
+		return e;
+	}
+
+	void free(Gentry *e) {
+		delete[] e->data;
+		delete e;
+	}
+};
 
 // {FDE57F91-397C-45F6-B907-A40E378DDB7A}
 static const GUID spotifyUsernameGuid = 
@@ -73,6 +139,7 @@ class SpotifySession {
 	sp_session *sp;
 	HANDLE loggedInEvent;
 public:
+	Buffer buf;
 
 	SpotifySession() : loggedInEvent(CreateEvent(NULL, TRUE, FALSE, NULL)) {
 		memset(&initOnce, 0, sizeof(INIT_ONCE));
@@ -130,6 +197,7 @@ public:
 			do {
 				sp_session_process_events(getAnyway(), &next_timeout);
 			} while (next_timeout == 0);
+			WakeConditionVariable(&buf.bufferNotEmpty);
 		}
 	}
 
@@ -183,32 +251,25 @@ int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
     if (num_frames == 0)
         return 0; // Audio discontinuity, do nothing
 
-	EnterCriticalSection(&bufferLock);
+	SpotifySession *ss = getSession(sess);
 
-	if (entries >= MAX_ENTRIES) {
-		LeaveCriticalSection(&bufferLock);
+	if (ss->buf.isFull()) {
 		return 0;
 	}
 
 	const size_t s = num_frames * sizeof(int16_t) * format->channels;
 
-	Gentry *e = new Gentry;
-	e->data = new char[s];
-	e->size = s;
-	e->sampleRate = format->sample_rate;
-	e->channels = format->channels;
+	void *data = new char[s];
+	memcpy(data, frames, s);
 
-	memcpy(e->data, frames, s);
-
-	entry[(ptr + entries) % MAX_ENTRIES] = e;
-	++entries;
-
-	LeaveCriticalSection(&bufferLock);
-	WakeConditionVariable(&bufferNotEmpty);
+	ss->buf.add(data, s, format->sample_rate, format->channels);
 
 	return num_frames;
 }
 
+void stuffNotify(SpotifySession *ss) {
+	ss->notifyStuff();
+}
 
 void CALLBACK end_of_track(sp_session *sess)
 {
@@ -234,8 +295,6 @@ class input_kdm
 public:
 	input_kdm()
 	{
-		InitializeConditionVariable (&bufferNotEmpty);
-		InitializeCriticalSection (&bufferLock);
 	}
 
 	~input_kdm()
@@ -298,24 +357,7 @@ public:
 		if (playbackDone)
 			return false;
 
-		ss.notifyStuff();
-
-		EnterCriticalSection(&bufferLock);
-
-		while (entries == 0) {
-			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock, 100);
-			LeaveCriticalSection(&bufferLock);
-			ss.notifyStuff();
-			EnterCriticalSection(&bufferLock);
-		}
-
-
-		Gentry *e = entry[ptr++];
-
-		--entries;
-
-		if (MAX_ENTRIES == ptr)
-			ptr = 0;
+		Gentry *e = ss.buf.take(&ss);
 
 		p_chunk.set_data_fixedpoint(
 			e->data,
@@ -325,10 +367,7 @@ public:
 			16,
 			audio_chunk::channel_config_stereo);
 
-		delete[] e->data;
-		delete e;
-
-		LeaveCriticalSection(&bufferLock);
+		ss.buf.free(e);
 
 		return true;
 	}
