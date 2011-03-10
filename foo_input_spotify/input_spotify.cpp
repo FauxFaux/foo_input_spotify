@@ -144,7 +144,7 @@ BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *contex
 	spotifyUsername.get(username);
 
 	pfc::string8 password;
-	spotifyUsername.get(password);
+	spotifyPassword.get(password);
 
 	sp_session_login(ss.getAnyway(), username.get_ptr(), password.get_ptr());
 	ss.waitForLogin();
@@ -257,9 +257,16 @@ public:
 		if (NULL == t)
 			throw exception_io_data("url not a track");
 
-		while (SP_ERROR_OK != sp_track_error(t)) {
+		while (true) {
+			const sp_error e = sp_track_error(t);
+			if (SP_ERROR_OK == e)
+				break;
+			if (SP_ERROR_IS_LOADING != e)
+				throw exception_io_data(sp_error_message(e));
+
 			Sleep(50);
 			ss.notifyStuff();
+			p_abort.check();
 		}
 	}
 
