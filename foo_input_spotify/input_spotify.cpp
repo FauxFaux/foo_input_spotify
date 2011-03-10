@@ -83,7 +83,7 @@ struct Buffer {
 	}
 
 	void flush() {
-		while (entries >= 0)
+		while (entries > 0)
 			free(take(NULL));
 	}
 
@@ -248,10 +248,12 @@ void CALLBACK notify_main_thread(sp_session *sess)
 int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
                           const void *frames, int num_frames)
 {
-    if (num_frames == 0)
-        return 0; // Audio discontinuity, do nothing
-
 	SpotifySession *ss = getSession(sess);
+	
+	if (num_frames == 0) {
+		ss->buf.flush();
+        return 0; // Audio discontinuity, do nothing
+	}
 
 	if (ss->buf.isFull()) {
 		return 0;
@@ -345,6 +347,7 @@ public:
 
 	void decode_initialize( unsigned p_flags, abort_callback & p_abort )
 	{
+		ss.buf.flush();
 		sp_session_player_load(ss.get(), t);
 		sp_session_player_play(ss.get(), 1);
 	}
