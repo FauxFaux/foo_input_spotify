@@ -275,7 +275,8 @@ void stuffNotify(SpotifySession *ss) {
 
 void CALLBACK end_of_track(sp_session *sess)
 {
-	playbackDone = true;
+	SpotifySession *ss = getSession(sess);
+	ss->buf.add(NULL, 0, 0, 0);
 }
 
 void CALLBACK play_token_lost(sp_session *sess)
@@ -287,12 +288,11 @@ class InputSpotify
 {
 	t_filestats m_stats;
 
-	std::string name;
-	std::string artist;
-	std::string album;
 	std::string url;
-	double length;
 	sp_track *t;
+
+	int channels;
+	int sampleRate;
 
 public:
 	InputSpotify()
@@ -357,10 +357,12 @@ public:
 		if (failed)
 			throw exception_io_data("failed");
 
-		if (playbackDone)
-			return false;
-
 		Gentry *e = ss.buf.take(&ss);
+
+		if (NULL == e->data) {
+			ss.buf.free(e);
+			return false;
+		}
 
 		p_chunk.set_data_fixedpoint(
 			e->data,
@@ -370,6 +372,9 @@ public:
 			16,
 			audio_chunk::channel_config_stereo);
 
+		channels = e->channels;
+		sampleRate = e->sampleRate;
+
 		ss.buf.free(e);
 
 		return true;
@@ -377,6 +382,7 @@ public:
 
 	void decode_seek( double p_seconds,abort_callback & p_abort )
 	{
+		ss.buf.flush();
 		sp_session_player_seek(ss.get(), p_seconds*1000);
 	}
 
@@ -387,13 +393,9 @@ public:
 
 	bool decode_get_dynamic_info( file_info & p_out, double & p_timestamp_delta )
 	{
-		//if ( first_block )
-		//{
-		//	first_block = false;
-		//	p_out.info_set_int( "samplerate", srate );
-		//	return true;
-		//}
-		return false;
+		p_out.info_set_int("CHANNELS", channels);
+		p_out.info_set_int("SAMPLERATE", sampleRate);
+		return true;
 	}
 
 	bool decode_get_dynamic_info_track( file_info & p_out, double & p_timestamp_delta )
