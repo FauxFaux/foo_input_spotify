@@ -281,7 +281,7 @@ void CALLBACK play_token_lost(sp_session *sess)
 	failed = true;
 }
 
-class input_kdm
+class InputSpotify
 {
 	t_filestats m_stats;
 
@@ -293,11 +293,11 @@ class input_kdm
 	sp_track *t;
 
 public:
-	input_kdm()
+	InputSpotify()
 	{
 	}
 
-	~input_kdm()
+	~InputSpotify()
 	{
 	}
 
@@ -420,6 +420,6 @@ public:
 	}
 };
 
-static input_singletrack_factory_t< input_kdm >             g_input_factory_kdm;
+static input_singletrack_factory_t< InputSpotify > inputFactorySpotify;
 
 DECLARE_COMPONENT_VERSION("Spotify Decoder", MYVERSION, "Support for spotify: urls.");
