@@ -68,8 +68,6 @@ DWORD WINAPI spotifyThread(void *data) {
 	}
 }
 
-class SpotifySession;
-
 struct Buffer {
 
 	size_t entries;
@@ -115,10 +113,10 @@ struct Buffer {
 
 	void flush() {
 		while (entries > 0)
-			free(take(NULL));
+			free(take());
 	}
 
-	Gentry *take(SpotifySession *ss) {
+	Gentry *take() {
 		EnterCriticalSection(&bufferLock);
 		while (entries == 0) {
 			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock, INFINITE);
@@ -394,7 +392,7 @@ public:
 		if (failed)
 			throw exception_io_data("failed");
 
-		Gentry *e = ss.buf.take(&ss);
+		Gentry *e = ss.buf.take();
 
 		if (NULL == e->data) {
 			ss.buf.free(e);
