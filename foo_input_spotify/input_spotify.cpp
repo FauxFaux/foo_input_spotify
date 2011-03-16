@@ -78,16 +78,14 @@ struct Buffer {
 	Gentry *entry[MAX_ENTRIES];
 
 	CONDITION_VARIABLE bufferNotEmpty;
-	CRITICAL_SECTION   bufferLock;
+	CriticalSection bufferLock;
 
 	Buffer() : entries(0), ptr(0) {
 		InitializeConditionVariable(&bufferNotEmpty);
-		InitializeCriticalSection(&bufferLock);
 	}
 
 	~Buffer() {
 		flush();
-		DeleteCriticalSection(&bufferLock);
 	}
 
 	void add(void *data, size_t size, int sampleRate, int channels) {
@@ -97,14 +95,12 @@ struct Buffer {
 		e->sampleRate = sampleRate;
 		e->channels = channels;
 
-		EnterCriticalSection(&bufferLock);
 		{
+			LockedCS lock(bufferLock);
 			entry[(ptr + entries) % MAX_ENTRIES] = e;
 			++entries;
 		}
-		LeaveCriticalSection(&bufferLock);
 		WakeConditionVariable(&bufferNotEmpty);
-
 	}
 
 	bool isFull() {
@@ -117,9 +113,9 @@ struct Buffer {
 	}
 
 	Gentry *take() {
-		EnterCriticalSection(&bufferLock);
+		LockedCS lock(bufferLock);
 		while (entries == 0) {
-			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock, INFINITE);
+			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock.cs, INFINITE);
 		}
 
 		Gentry *e = entry[ptr++];
@@ -127,7 +123,6 @@ struct Buffer {
 		if (MAX_ENTRIES == ptr)
 			ptr = 0;
 
-		LeaveCriticalSection(&bufferLock);
 		return e;
 	}
 
