@@ -437,7 +437,7 @@ public:
 		ss.buf.flush();
 		sp_session *sess = ss.get();
 		LockedCS lock(ss.getSpotifyCS());
-		sp_session_player_seek(sess, p_seconds*1000);
+		sp_session_player_seek(sess, static_cast<int>(p_seconds*1000));
 	}
 
 	bool decode_can_seek()
