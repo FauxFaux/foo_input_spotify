@@ -17,7 +17,6 @@ extern "C" {
 	extern const size_t g_appkey_size;
 }
 
-volatile bool doNotify = false;
 volatile bool failed = false;
 
 struct Gentry {
@@ -27,9 +26,49 @@ struct Gentry {
 	int channels;
 };
 
-class SpotifySession;
+struct CriticalSection {
+	CRITICAL_SECTION cs;
+	CriticalSection() {
+		InitializeCriticalSection(&cs);
+	}
 
-void stuffNotify(SpotifySession *ss);
+	~CriticalSection() {
+		DeleteCriticalSection(&cs);
+	}
+};
+
+struct LockedCS {
+	CRITICAL_SECTION &cs;
+	LockedCS(CriticalSection &o) : cs(o.cs) {
+		EnterCriticalSection(&cs);
+	}
+
+	~LockedCS() {
+		LeaveCriticalSection(&cs);
+	}
+};
+
+struct SpotifyThreadData {
+	SpotifyThreadData(CriticalSection &cs) : cs(cs) {
+	}
+
+	HANDLE processEventsEvent;
+	CriticalSection &cs;
+	sp_session *sess;
+};
+
+DWORD WINAPI spotifyThread(void *data) {
+	SpotifyThreadData *dat = (SpotifyThreadData*)data;
+
+	int nextTimeout = INFINITE;
+	while (true) {
+		WaitForSingleObject(dat->processEventsEvent, nextTimeout);
+		LockedCS lock(dat->cs);
+		sp_session_process_events(dat->sess, &nextTimeout);
+	}
+}
+
+class SpotifySession;
 
 struct Buffer {
 
@@ -82,10 +121,7 @@ struct Buffer {
 	Gentry *take(SpotifySession *ss) {
 		EnterCriticalSection(&bufferLock);
 		while (entries == 0) {
-			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock, 5000);
-
-			if (ss)
-				stuffNotify(ss);
+			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock, INFINITE);
 		}
 
 		Gentry *e = entry[ptr++];
@@ -130,10 +166,25 @@ class SpotifySession {
 	INIT_ONCE initOnce;
 	sp_session *sp;
 	HANDLE loggedInEvent;
+	SpotifyThreadData threadData;
+	CriticalSection spotifyCS;
+	HANDLE processEventsEvent;
 public:
 	Buffer buf;
 
-	SpotifySession() : loggedInEvent(CreateEvent(NULL, TRUE, FALSE, NULL)) {
+	SpotifySession() :
+			loggedInEvent(CreateEvent(NULL, TRUE, FALSE, NULL)),
+			threadData(spotifyCS) {
+
+		processEventsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+		threadData.processEventsEvent = processEventsEvent;
+		threadData.sess = getAnyway();
+
+		if (NULL == CreateThread(NULL, 0, &spotifyThread, &threadData, 0, NULL)) {
+			throw pfc::exception("Couldn't create thread");
+		}
+
 		memset(&initOnce, 0, sizeof(INIT_ONCE));
 
 		static sp_session_callbacks session_callbacks = {};
@@ -176,6 +227,7 @@ public:
 
 	~SpotifySession() {
 		CloseHandle(loggedInEvent);
+		CloseHandle(processEventsEvent);
 	}
 
 	sp_session *getAnyway() {
@@ -191,24 +243,16 @@ public:
 	}
 
 	void waitForLogin() {
-		while (WAIT_OBJECT_0 != WaitForSingleObject(loggedInEvent, 100))
-			notifyStuff();
-	}
-
-	void notifyStuff() {
-		if (doNotify) {
-			doNotify = false;
-			int next_timeout;
-			do {
-				sp_session_process_events(getAnyway(), &next_timeout);
-			} while (next_timeout == 0);
-			WakeConditionVariable(&buf.bufferNotEmpty);
-		}
+		WaitForSingleObject(loggedInEvent, INFINITE);
 	}
 
 	void loggedIn(sp_error err) {
 		// XXX err
 		SetEvent(loggedInEvent);
+	}
+
+	void processEvents() {
+		SetEvent(processEventsEvent);
 	}
 } ss;
 
@@ -247,7 +291,7 @@ void CALLBACK logged_in(sp_session *sess, sp_error error)
 
 void CALLBACK notify_main_thread(sp_session *sess)
 {
-    doNotify = true;
+    getSession(sess)->processEvents();
 }
 
 int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
@@ -272,10 +316,6 @@ int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
 	ss->buf.add(data, s, format->sample_rate, format->channels);
 
 	return num_frames;
-}
-
-void stuffNotify(SpotifySession *ss) {
-	ss->notifyStuff();
 }
 
 void CALLBACK end_of_track(sp_session *sess)
@@ -324,7 +364,6 @@ public:
 				throw exception_io_data(sp_error_message(e));
 
 			Sleep(50);
-			ss.notifyStuff();
 			p_abort.check();
 		}
 	}
