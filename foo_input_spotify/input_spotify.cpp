@@ -248,7 +248,12 @@ public:
 	}
 
 	void loggedIn(sp_error err) {
-		// XXX err
+		if (SP_ERROR_OK != err) {
+			LockedCS lock(spotifyCS);
+			pfc::string8 s = "Logging-in went wrong.  This is not recoverable.  Please restart";
+			s += sp_error_message(err);
+			console::error(s);
+		}
 		SetEvent(loggedInEvent);
 	}
 
@@ -274,11 +279,11 @@ BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *contex
 }
 
 void CALLBACK log_message(sp_session *sess, const char *error) {
-	printf("%s\n", error);
+	console::formatter() << "spotify log: " << error;
 }
 
 void CALLBACK message_to_user(sp_session *sess, const char *error) {
-	printf("%s\n", error);
+	console::complain("Message from Spotify", error);
 }
 
 void CALLBACK start_playback(sp_session *sess) {
