@@ -13,6 +13,10 @@
   <ItemGroup>
     <ClCompile Include="input_spotify.cpp" />
     <ClCompile Include="key-930.c" />
+    <ClCompile Include="SpotifySession.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="SpotifySession.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{02F13FAE-C9D9-4C70-A691-582C3B49B15C}</ProjectGuid>
