@@ -179,10 +179,6 @@ public:
 		threadData.processEventsEvent = processEventsEvent;
 		threadData.sess = getAnyway();
 
-		if (NULL == CreateThread(NULL, 0, &spotifyThread, &threadData, 0, NULL)) {
-			throw pfc::exception("Couldn't create thread");
-		}
-
 		memset(&initOnce, 0, sizeof(INIT_ONCE));
 
 		static sp_session_callbacks session_callbacks = {};
@@ -216,10 +212,18 @@ public:
 		session_callbacks.message_to_user = &message_to_user;
 		session_callbacks.start_playback = &start_playback;
 
-		sp_error err = sp_session_create(&spconfig, &sp);
+		{
+			LockedCS lock(spotifyCS);
 
-		if (SP_ERROR_OK != err) {
-			throw pfc::exception("Couldn't create spotify session");
+			if (NULL == CreateThread(NULL, 0, &spotifyThread, &threadData, 0, NULL)) {
+				throw pfc::exception("Couldn't create thread");
+			}
+
+			sp_error err = sp_session_create(&spconfig, &sp);
+
+			if (SP_ERROR_OK != err) {
+				throw pfc::exception("Couldn't create spotify session");
+			}
 		}
 	}
 
@@ -238,6 +242,10 @@ public:
 			NULL,
 			NULL);
 		return getAnyway();
+	}
+
+	CriticalSection &getSpotifyCS() {
+		return spotifyCS;
 	}
 
 	void waitForLogin() {
@@ -261,13 +269,13 @@ BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *contex
 	pfc::string8 password;
 	spotifyPassword.get(password);
 
-	sp_session_login(ss.getAnyway(), username.get_ptr(), password.get_ptr());
+	{
+		sp_session *sess = ss.getAnyway();
+		LockedCS lock(ss.getSpotifyCS());
+		sp_session_login(sess, username.get_ptr(), password.get_ptr());
+	}
 	ss.waitForLogin();
 	return TRUE;
-}
-
-SpotifySession *getSession(void *param) {
-	return static_cast<SpotifySession *>(sp_session_userdata(static_cast<sp_session*>(param)));
 }
 
 void CALLBACK log_message(sp_session *sess, const char *error) {
@@ -289,20 +297,18 @@ void CALLBACK logged_in(sp_session *sess, sp_error error)
 
 void CALLBACK notify_main_thread(sp_session *sess)
 {
-    getSession(sess)->processEvents();
+    ss.processEvents();
 }
 
 int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
                           const void *frames, int num_frames)
 {
-	SpotifySession *ss = getSession(sess);
-	
 	if (num_frames == 0) {
-		ss->buf.flush();
+		ss.buf.flush();
         return 0;
 	}
 
-	if (ss->buf.isFull()) {
+	if (ss.buf.isFull()) {
 		return 0;
 	}
 
@@ -311,15 +317,14 @@ int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
 	void *data = new char[s];
 	memcpy(data, frames, s);
 
-	ss->buf.add(data, s, format->sample_rate, format->channels);
+	ss.buf.add(data, s, format->sample_rate, format->channels);
 
 	return num_frames;
 }
 
 void CALLBACK end_of_track(sp_session *sess)
 {
-	SpotifySession *ss = getSession(sess);
-	ss->buf.add(NULL, 0, 0, 0);
+	ss.buf.add(NULL, 0, 0, 0);
 }
 
 void CALLBACK play_token_lost(sp_session *sess)
@@ -346,20 +351,28 @@ public:
 
 		ss.get();
 
-		sp_link *link = sp_link_create_from_string(p_path);
-		if (NULL == link)
-			throw exception_io_data("couldn't parse url");
+		{
+			LockedCS lock(ss.getSpotifyCS());
 
-		t = sp_link_as_track(link);
-		if (NULL == t)
-			throw exception_io_data("url not a track");
+			sp_link *link = sp_link_create_from_string(p_path);
+			if (NULL == link)
+				throw exception_io_data("couldn't parse url");
+
+			t = sp_link_as_track(link);
+			if (NULL == t)
+				throw exception_io_data("url not a track");
+		}
 
 		while (true) {
-			const sp_error e = sp_track_error(t);
-			if (SP_ERROR_OK == e)
-				break;
-			if (SP_ERROR_IS_LOADING != e)
-				throw exception_io_data(sp_error_message(e));
+			{
+				LockedCS lock(ss.getSpotifyCS());
+
+				const sp_error e = sp_track_error(t);
+				if (SP_ERROR_OK == e)
+					break;
+				if (SP_ERROR_IS_LOADING != e)
+					throw exception_io_data(sp_error_message(e));
+			}
 
 			Sleep(50);
 			p_abort.check();
@@ -368,6 +381,7 @@ public:
 
 	void get_info( file_info & p_info, abort_callback & p_abort )
 	{
+		LockedCS lock(ss.getSpotifyCS());
 		p_info.set_length(sp_track_duration(t)/1000.0);
 		p_info.meta_add("ARTIST", sp_artist_name(sp_track_artist(t, 0)));
 		p_info.meta_add("ALBUM", sp_album_name(sp_track_album(t)));
@@ -383,8 +397,11 @@ public:
 	void decode_initialize( unsigned p_flags, abort_callback & p_abort )
 	{
 		ss.buf.flush();
-		sp_session_player_load(ss.get(), t);
-		sp_session_player_play(ss.get(), 1);
+		sp_session *sess = ss.get();
+
+		LockedCS lock(ss.getSpotifyCS());
+		sp_session_player_load(sess, t);
+		sp_session_player_play(sess, 1);
 	}
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
@@ -418,7 +435,9 @@ public:
 	void decode_seek( double p_seconds,abort_callback & p_abort )
 	{
 		ss.buf.flush();
-		sp_session_player_seek(ss.get(), p_seconds*1000);
+		sp_session *sess = ss.get();
+		LockedCS lock(ss.getSpotifyCS());
+		sp_session_player_seek(sess, p_seconds*1000);
 	}
 
 	bool decode_can_seek()
