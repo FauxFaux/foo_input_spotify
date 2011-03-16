@@ -3,7 +3,6 @@
 #define _WIN32_WINNT 0x0600
 
 #include <foobar2000.h>
-#include <libspotify/api.h>
 
 #include "../helpers/dropdown_helper.h"
 #include <functional>
@@ -20,101 +19,6 @@ extern "C" {
 }
 
 SpotifySession ss;
-
-volatile bool failed = false;
-
-struct Gentry {
-	void *data;
-    size_t size;
-	int sampleRate;
-	int channels;
-};
-
-struct CriticalSection {
-	CRITICAL_SECTION cs;
-	CriticalSection() {
-		InitializeCriticalSection(&cs);
-	}
-
-	~CriticalSection() {
-		DeleteCriticalSection(&cs);
-	}
-};
-
-struct LockedCS {
-	CRITICAL_SECTION &cs;
-	LockedCS(CriticalSection &o) : cs(o.cs) {
-		EnterCriticalSection(&cs);
-	}
-
-	~LockedCS() {
-		LeaveCriticalSection(&cs);
-	}
-};
-
-struct Buffer {
-
-	size_t entries;
-	size_t ptr;
-
-	static const size_t MAX_ENTRIES = 255;
-
-	Gentry *entry[MAX_ENTRIES];
-
-	CONDITION_VARIABLE bufferNotEmpty;
-	CriticalSection bufferLock;
-
-	Buffer() : entries(0), ptr(0) {
-		InitializeConditionVariable(&bufferNotEmpty);
-	}
-
-	~Buffer() {
-		flush();
-	}
-
-	void add(void *data, size_t size, int sampleRate, int channels) {
-		Gentry *e = new Gentry;
-		e->data = data;
-		e->size = size;
-		e->sampleRate = sampleRate;
-		e->channels = channels;
-
-		{
-			LockedCS lock(bufferLock);
-			entry[(ptr + entries) % MAX_ENTRIES] = e;
-			++entries;
-		}
-		WakeConditionVariable(&bufferNotEmpty);
-	}
-
-	bool isFull() {
-		return entries >= MAX_ENTRIES;
-	}
-
-	void flush() {
-		while (entries > 0)
-			free(take());
-	}
-
-	Gentry *take() {
-		LockedCS lock(bufferLock);
-		while (entries == 0) {
-			SleepConditionVariableCS(&bufferNotEmpty, &bufferLock.cs, INFINITE);
-		}
-
-		Gentry *e = entry[ptr++];
-		--entries;
-		if (MAX_ENTRIES == ptr)
-			ptr = 0;
-
-		return e;
-	}
-
-	void free(Gentry *e) {
-		delete[] e->data;
-		delete e;
-	}
-};
 
 // {FDE57F91-397C-45F6-B907-A40E378DDB7A}
 static const GUID spotifyUsernameGuid = 
@@ -201,9 +105,6 @@ public:
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
 	{
-		if (failed)
-			throw exception_io_data("failed");
-
 		Gentry *e = ss.buf.take();
 
 		if (NULL == e->data) {
