@@ -88,7 +88,7 @@ public:
 		sp_session *sess = ss.get();
 
 		LockedCS lock(ss.getSpotifyCS());
-		assertSucceeds("load track", sp_session_player_load(sess, t));
+		assertSucceeds("load track (including region check)", sp_session_player_load(sess, t));
 		sp_session_player_play(sess, 1);
 	}
 
