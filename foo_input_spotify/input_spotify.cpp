@@ -59,7 +59,7 @@ public:
 				if (SP_ERROR_OK == e)
 					break;
 				if (SP_ERROR_IS_LOADING != e)
-					throw exception_io_data(sp_error_message(e));
+					assertSucceeds("preloading track", e);
 			}
 
 			Sleep(50);
@@ -88,7 +88,7 @@ public:
 		sp_session *sess = ss.get();
 
 		LockedCS lock(ss.getSpotifyCS());
-		sp_session_player_load(sess, t);
+		assertSucceeds("load track", sp_session_player_load(sess, t));
 		sp_session_player_play(sess, 1);
 	}
 

@@ -28,6 +28,30 @@ DWORD WINAPI spotifyThread(void *data) {
 	}
 }
 
+pfc::string8 &doctor(pfc::string8 &msg, sp_error err) {
+	msg += " failed: ";
+	msg += sp_error_message(err);
+	return msg;
+}
+
+void alert(pfc::string8 msg) {
+	console::complain("boom", msg.toString());
+}
+
+/* @param msg "logging in" */
+void assertSucceeds(pfc::string8 msg, sp_error err) {
+	if (SP_ERROR_OK == err)
+		return;
+
+	throw pfc::exception(doctor(msg, err));
+}
+
+void alertIfFailure(pfc::string8 msg, sp_error err) {
+	if (SP_ERROR_OK == err)
+		return;
+	alert(doctor(msg, err));
+}
+
 // {FDE57F91-397C-45F6-B907-A40E378DDB7A}
 static const GUID spotifyUsernameGuid = 
 { 0xfde57f91, 0x397c, 0x45f6, { 0xb9, 0x7, 0xa4, 0xe, 0x37, 0x8d, 0xdb, 0x7a } };
@@ -100,11 +124,7 @@ SpotifySession::SpotifySession() :
 			throw pfc::exception("Couldn't create thread");
 		}
 
-		sp_error err = sp_session_create(&spconfig, &sp);
-
-		if (SP_ERROR_OK != err) {
-			throw pfc::exception("Couldn't create spotify session");
-		}
+		assertSucceeds("creating session", sp_session_create(&spconfig, &sp));
 	}
 }
 
@@ -134,12 +154,7 @@ void SpotifySession::waitForLogin() {
 }
 
 void SpotifySession::loggedIn(sp_error err) {
-	if (SP_ERROR_OK != err) {
-		LockedCS lock(spotifyCS);
-		pfc::string8 s = "Logging-in went wrong.  This is not recoverable.  Please restart";
-		s += sp_error_message(err);
-		console::error(s);
-	}
+	alertIfFailure("logging in", err);
 	SetEvent(loggedInEvent);
 }
 
@@ -175,8 +190,8 @@ void CALLBACK log_message(sp_session *sess, const char *error) {
 	console::formatter() << "spotify log: " << error;
 }
 
-void CALLBACK message_to_user(sp_session *sess, const char *error) {
-	console::complain("Message from Spotify", error);
+void CALLBACK message_to_user(sp_session *sess, const char *message) {
+	alert(message);
 }
 
 void CALLBACK start_playback(sp_session *sess) {
@@ -222,5 +237,5 @@ void CALLBACK end_of_track(sp_session *sess)
 
 void CALLBACK play_token_lost(sp_session *sess)
 {
-	console::complain("Message from Spotify", "play token lost");
+	alert("play token lost (someone's using your account elsewhere)");
 }

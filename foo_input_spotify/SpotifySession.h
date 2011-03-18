@@ -36,3 +36,5 @@ public:
 
 	void processEvents();
 };
+
+void assertSucceeds(pfc::string8 msg, sp_error err);
