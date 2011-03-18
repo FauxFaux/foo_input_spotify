@@ -10,6 +10,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <vector>
 
 #include "SpotifySession.h"
 
@@ -25,21 +26,29 @@ class InputSpotify
 	t_filestats m_stats;
 
 	std::string url;
-	sp_track *t;
+	std::vector<sp_track *> t;
+	typedef std::vector<sp_track *>::iterator tr_iter;
 
 	int channels;
 	int sampleRate;
 
+#define FOR_TRACKS() for (tr_iter it = t.begin(); it != t.end(); ++it)
+
+	void freeTracks() {
+		FOR_TRACKS()
+			sp_track_release(*it);
+		t.clear();
+	}
+
 public:
 
-	InputSpotify() : t(NULL) {
+	InputSpotify() {
 	}
 
 	~InputSpotify() {
-		if (NULL != t)
-			sp_track_release(t);
+		freeTracks();
 	}
-	
+
 	void open( service_ptr_t<file> m_file, const char * p_path, t_input_open_reason p_reason, abort_callback & p_abort )
 	{
 		if ( p_reason == input_open_info_write ) throw exception_io_data();
@@ -54,26 +63,32 @@ public:
 			if (NULL == link)
 				throw exception_io_data("couldn't parse url");
 
-			if (NULL != t)
-				sp_track_release(t);
+			freeTracks();
 
-			t = sp_link_as_track(link);
+			sp_track *ptr = sp_link_as_track(link);
 
 			// do we need to free link here, above or never?
 
-			if (NULL == t)
+			if (NULL == ptr)
 				throw exception_io_data("url not a track");
+
+			t.push_back(ptr);
 		}
 
 		while (true) {
 			{
 				LockedCS lock(ss.getSpotifyCS());
+				size_t done = 0;
+				FOR_TRACKS() {
+					const sp_error e = sp_track_error(*it);
+					if (SP_ERROR_OK == e)
+						++done;
+					else if (SP_ERROR_IS_LOADING != e)
+						assertSucceeds("preloading track", e);
+				}
 
-				const sp_error e = sp_track_error(t);
-				if (SP_ERROR_OK == e)
+				if (done == t.size())
 					break;
-				if (SP_ERROR_IS_LOADING != e)
-					assertSucceeds("preloading track", e);
 			}
 
 			Sleep(50);
@@ -81,13 +96,14 @@ public:
 		}
 	}
 
-	void get_info( file_info & p_info, abort_callback & p_abort )
+	void get_info(t_int32 subsong, file_info & p_info, abort_callback & p_abort )
 	{
 		LockedCS lock(ss.getSpotifyCS());
-		p_info.set_length(sp_track_duration(t)/1000.0);
-		p_info.meta_add("ARTIST", sp_artist_name(sp_track_artist(t, 0)));
-		p_info.meta_add("ALBUM", sp_album_name(sp_track_album(t)));
-		p_info.meta_add("TITLE", sp_track_name(t));
+		sp_track *tr = t.at(subsong);
+		p_info.set_length(sp_track_duration(tr)/1000.0);
+		p_info.meta_add("ARTIST", sp_artist_name(sp_track_artist(tr, 0)));
+		p_info.meta_add("ALBUM", sp_album_name(sp_track_album(tr)));
+		p_info.meta_add("TITLE", sp_track_name(tr));
 		p_info.meta_add("URL", url.c_str());
 	}
 
@@ -96,13 +112,13 @@ public:
 		return m_stats;
 	}
 
-	void decode_initialize( unsigned p_flags, abort_callback & p_abort )
+	void decode_initialize(t_int32 subsong, unsigned p_flags, abort_callback & p_abort )
 	{
 		ss.buf.flush();
 		sp_session *sess = ss.get();
 
 		LockedCS lock(ss.getSpotifyCS());
-		assertSucceeds("load track (including region check)", sp_session_player_load(sess, t));
+		assertSucceeds("load track (including region check)", sp_session_player_load(sess, t.at(subsong)));
 		sp_session_player_play(sess, 1);
 	}
 
@@ -158,7 +174,12 @@ public:
 
 	void decode_on_idle( abort_callback & p_abort ) { }
 
-	void retag( const file_info & p_info, abort_callback & p_abort )
+	void retag_set_info( t_int32 subsong, const file_info & p_info, abort_callback & p_abort )
+	{
+		throw exception_io_data();
+	}
+
+	void retag_commit( abort_callback & p_abort )
 	{
 		throw exception_io_data();
 	}
@@ -172,8 +193,16 @@ public:
 	{
 		return !strncmp( p_full_path, "spotify:", strlen("spotify:") );
 	}
+
+	t_uint32 get_subsong_count() {
+		return 1;
+	}
+
+	t_uint32 get_subsong(t_uint32 song) {
+		return song;
+	}
 };
 
-static input_singletrack_factory_t< InputSpotify > inputFactorySpotify;
+static input_factory_t< InputSpotify > inputFactorySpotify;
 
 DECLARE_COMPONENT_VERSION("Spotify Decoder", MYVERSION, "Support for spotify: urls.");
