@@ -32,6 +32,14 @@ class InputSpotify
 
 public:
 
+	InputSpotify() : t(NULL) {
+	}
+
+	~InputSpotify() {
+		if (NULL != t)
+			sp_track_release(t);
+	}
+	
 	void open( service_ptr_t<file> m_file, const char * p_path, t_input_open_reason p_reason, abort_callback & p_abort )
 	{
 		if ( p_reason == input_open_info_write ) throw exception_io_data();
@@ -46,7 +54,13 @@ public:
 			if (NULL == link)
 				throw exception_io_data("couldn't parse url");
 
+			if (NULL != t)
+				sp_track_release(t);
+
 			t = sp_link_as_track(link);
+
+			// do we need to free link here, above or never?
+
 			if (NULL == t)
 				throw exception_io_data("url not a track");
 		}
