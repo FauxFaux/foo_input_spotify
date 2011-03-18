@@ -33,14 +33,27 @@ struct LockedCS {
 	~LockedCS() {
 		LeaveCriticalSection(&cs);
 	}
+
+	void dropAndReacquire() {
+		LeaveCriticalSection(&cs);
+		Sleep(0);
+		EnterCriticalSection(&cs);
+	}
 };
 
+/** A fixed sized, thread-safe queue with blocking take(), but without an efficient blocking add implementation.
+ * Expected use: Main producer, secondary notification producers, single consumer. 
+ * Main producer is expected to back-off when queue is full.
+ *
+ * In hindsight, a dual-lock queue would've been simpler.  Originally there wern't multiple producers..
+ */
 struct Buffer {
 
 	size_t entries;
 	size_t ptr;
 
 	static const size_t MAX_ENTRIES = 255;
+	static const size_t SPACE_FOR_UTILITY_MESSAGES = 5;
 
 	Gentry *entry[MAX_ENTRIES];
 

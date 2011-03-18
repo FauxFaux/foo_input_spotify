@@ -17,6 +17,11 @@ void Buffer::add(void *data, size_t size, int sampleRate, int channels) {
 
 	{
 		LockedCS lock(bufferLock);
+
+		// Yes, this is spinlock.  See the class comment.
+		while (entries >= MAX_ENTRIES)
+			lock.dropAndReacquire();
+
 		entry[(ptr + entries) % MAX_ENTRIES] = e;
 		++entries;
 	}
@@ -24,7 +29,7 @@ void Buffer::add(void *data, size_t size, int sampleRate, int channels) {
 }
 
 bool Buffer::isFull() {
-	return entries >= MAX_ENTRIES;
+	return entries >= MAX_ENTRIES - SPACE_FOR_UTILITY_MESSAGES;
 }
 
 void Buffer::flush() {
