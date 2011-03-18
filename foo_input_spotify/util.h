@@ -34,9 +34,9 @@ struct LockedCS {
 		LeaveCriticalSection(&cs);
 	}
 
-	void dropAndReacquire() {
+	void dropAndReacquire(DWORD wait = 0) {
 		LeaveCriticalSection(&cs);
-		Sleep(0);
+		Sleep(wait);
 		EnterCriticalSection(&cs);
 	}
 };

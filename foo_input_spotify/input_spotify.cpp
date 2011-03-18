@@ -54,7 +54,7 @@ public:
 		if ( p_reason == input_open_info_write ) throw exception_io_data();
 		url = p_path;
 
-		ss.get();
+		sp_session *sess = ss.get();
 
 		{
 			LockedCS lock(ss.getSpotifyCS());
@@ -69,10 +69,35 @@ public:
 
 			// do we need to free link here, above or never?
 
-			if (NULL == ptr)
-				throw exception_io_data("url not a track");
+			if (NULL == ptr) {
+				sp_playlist *playlist = sp_playlist_create(sess, link);
+				if (NULL == playlist)
+					throw exception_io_data("Apparently not a track or a playlist");
 
-			t.push_back(ptr);
+				int count;
+				// XXX I don't know what we're waiting for here; sp_playlist_num_tracks returning 0 is undocumented,
+				// there's no sp_playlist_error() to return not ready..
+				// foobar can't cope with an empty entry, anyway, so we have to get something or error out
+				for (int retries = 0; retries < 50; ++retries) {
+					count = sp_playlist_num_tracks(playlist);
+					if (0 != count)
+						break;
+
+					lock.dropAndReacquire(100);
+					p_abort.check();
+				}
+
+				if (0 == count)
+					throw exception_io_data("empty (or failed to load?) playlist");
+
+				for (int i = 0; i < count; ++i) {
+					sp_track *track = sp_playlist_track(playlist, i);
+					sp_track_add_ref(track); // or the playlist will free it
+					t.push_back(track);
+				}
+				sp_playlist_release(playlist);
+			} else
+				t.push_back(ptr);
 		}
 
 		while (true) {
@@ -195,7 +220,7 @@ public:
 	}
 
 	t_uint32 get_subsong_count() {
-		return 1;
+		return t.size();
 	}
 
 	t_uint32 get_subsong(t_uint32 song) {
