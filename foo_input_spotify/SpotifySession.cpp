@@ -92,10 +92,15 @@ SpotifySession::SpotifySession() :
 	PWSTR path;
 	if (SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &path))
 		throw pfc::exception("couldn't get local app data path");
+
 	size_t num;
 	char lpath[MAX_PATH];
-	if (wcstombs_s(&num, lpath, MAX_PATH, path, MAX_PATH))
+	if (wcstombs_s(&num, lpath, MAX_PATH, path, MAX_PATH)) {
+		CoTaskMemFree(path);
 		throw pfc::exception("couldn't convert local app data path");
+	}
+	CoTaskMemFree(path);
+
 	if (strcat_s(lpath, "\\foo_input_spotify"))
 		throw pfc::exception("couldn't append to path");
 
