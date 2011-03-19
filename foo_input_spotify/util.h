@@ -5,6 +5,7 @@
 #define _WIN32_WINNT 0x0600
 
 #include <windows.h>
+#include "boost/noncopyable.hpp"
 
 struct Gentry {
 	void *data;
@@ -13,7 +14,7 @@ struct Gentry {
 	int channels;
 };
 
-struct CriticalSection {
+struct CriticalSection : boost::noncopyable {
 	CRITICAL_SECTION cs;
 	CriticalSection() {
 		InitializeCriticalSection(&cs);
@@ -24,7 +25,7 @@ struct CriticalSection {
 	}
 };
 
-struct LockedCS {
+struct LockedCS : boost::noncopyable {
 	CRITICAL_SECTION &cs;
 	LockedCS(CriticalSection &o) : cs(o.cs) {
 		EnterCriticalSection(&cs);
@@ -47,7 +48,7 @@ struct LockedCS {
  *
  * In hindsight, a dual-lock queue would've been simpler.  Originally there wern't multiple producers..
  */
-struct Buffer {
+struct Buffer : boost::noncopyable {
 
 	size_t entries;
 	size_t ptr;

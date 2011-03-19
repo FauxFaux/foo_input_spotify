@@ -17,6 +17,7 @@
     <ClCompile Include="util.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="boost\noncopyable.hpp" />
     <ClInclude Include="SpotifySession.h" />
     <ClInclude Include="util.h" />
   </ItemGroup>
