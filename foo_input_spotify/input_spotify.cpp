@@ -1,6 +1,4 @@
-#define MYVERSION "0.1"
-
-#define _WIN32_WINNT 0x0600
+#include "util.h"
 
 #include <foobar2000.h>
 

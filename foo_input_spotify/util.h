@@ -1,6 +1,6 @@
 #pragma once
 
-#define MYVERSION "0.1"
+#define MYVERSION "0.02"
 
 #define _WIN32_WINNT 0x0600
 
