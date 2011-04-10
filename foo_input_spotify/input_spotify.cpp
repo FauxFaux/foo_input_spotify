@@ -66,8 +66,8 @@ public:
 			sp_track *ptr = sp_link_as_track(link);
 
 			// do we need to free link here, above or never?
-
 			if (NULL == ptr) {
+#ifndef LIBDESPOTIFY_H
 				sp_playlist *playlist = sp_playlist_create(sess, link);
 				if (NULL == playlist)
 					throw exception_io_data("Apparently not a track or a playlist");
@@ -94,10 +94,14 @@ public:
 					t.push_back(track);
 				}
 				sp_playlist_release(playlist);
+#else
+				throw exception_io_data("Apparently not a track");
+#endif
 			} else
 				t.push_back(ptr);
 		}
 
+#ifndef LIBDESPOTIFY_H
 		while (true) {
 			{
 				LockedCS lock(ss.getSpotifyCS());
@@ -117,6 +121,7 @@ public:
 			Sleep(50);
 			p_abort.check();
 		}
+#endif
 	}
 
 	void get_info(t_int32 subsong, file_info & p_info, abort_callback & p_abort )
@@ -141,12 +146,18 @@ public:
 		sp_session *sess = ss.get();
 
 		LockedCS lock(ss.getSpotifyCS());
+#ifndef LIBDESPOTIFY_H
 		assertSucceeds("load track (including region check)", sp_session_player_load(sess, t.at(subsong)));
 		sp_session_player_play(sess, 1);
+#else
+		assertSucceeds("track is playable in this region", t.at(subsong)->playable);
+		despotify_play(sess, t.at(subsong), false);
+#endif
 	}
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
 	{
+#ifndef LIBDESPOTIFY_H
 		Gentry *e = ss.buf.take();
 
 		if (NULL == e->data) {
@@ -166,21 +177,41 @@ public:
 		sampleRate = e->sampleRate;
 
 		ss.buf.free(e);
+#else
+		pcm_data d;
+		pcm_data *e = &d;
+		despotify_get_pcm(ss.get(), e);
+		p_chunk.set_data_fixedpoint(
+			e->buf,
+			e->len,
+			e->samplerate,
+			e->channels,
+			16,
+			audio_chunk::channel_config_stereo);
 
+		channels = e->channels;
+		sampleRate = e->samplerate;
+#endif
 		return true;
 	}
 
 	void decode_seek( double p_seconds,abort_callback & p_abort )
 	{
+#ifndef LIBDESPOTIFY_H
 		ss.buf.flush();
 		sp_session *sess = ss.get();
 		LockedCS lock(ss.getSpotifyCS());
 		sp_session_player_seek(sess, static_cast<int>(p_seconds*1000));
+#endif
 	}
 
 	bool decode_can_seek()
 	{
+#ifndef LIBDESPOTIFY_H
 		return true;
+#else
+		return false;
+#endif
 	}
 
 	bool decode_get_dynamic_info( file_info & p_out, double & p_timestamp_delta )

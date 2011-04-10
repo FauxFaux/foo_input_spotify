@@ -18,9 +18,6 @@
     <ClCompile Include="input_spotify.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="key-930.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SpotifySession.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

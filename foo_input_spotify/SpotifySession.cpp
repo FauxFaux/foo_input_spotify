@@ -1,7 +1,6 @@
 #include "util.h"
 
 #include <foobar2000.h>
-#include <libspotify/api.h>
 
 #include <shlobj.h>
 
@@ -10,11 +9,7 @@
 
 #include "SpotifySession.h"
 
-extern "C" {
-	extern const uint8_t g_appkey[];
-	extern const size_t g_appkey_size;
-}
-
+#ifndef LIBDESPOTIFY_H
 DWORD WINAPI spotifyThread(void *data) {
 	SpotifyThreadData *dat = (SpotifyThreadData*)data;
 
@@ -25,6 +20,7 @@ DWORD WINAPI spotifyThread(void *data) {
 		sp_session_process_events(dat->sess, &nextTimeout);
 	}
 }
+#endif
 
 pfc::string8 &doctor(pfc::string8 &msg, sp_error err) {
 	msg += " failed: ";
@@ -61,7 +57,7 @@ static const GUID spotifyPasswordGuid =
 static advconfig_string_factory_MT spotifyUsername("Spotify Username", spotifyUsernameGuid, advconfig_entry::guid_root, 1, "", 0);
 static advconfig_string_factory_MT spotifyPassword("Spotify Password (plaintext lol)", spotifyPasswordGuid, advconfig_entry::guid_root, 2, "", 0);
 
-
+#ifndef LIBDESPOTIFY_H
 void CALLBACK log_message(sp_session *sess, const char *error);
 void CALLBACK message_to_user(sp_session *sess, const char *error);
 void CALLBACK start_playback(sp_session *sess);
@@ -70,6 +66,9 @@ void CALLBACK notify_main_thread(sp_session *sess);
 int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format, const void *frames, int num_frames);
 void CALLBACK end_of_track(sp_session *sess);
 void CALLBACK play_token_lost(sp_session *sess);
+#else
+void callback(struct despotify_session* ds, int signal, void* data, void* callback_data);
+#endif
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context);
 
@@ -83,9 +82,6 @@ SpotifySession::SpotifySession() :
 	threadData.sess = getAnyway();
 
 	memset(&initOnce, 0, sizeof(INIT_ONCE));
-
-	static sp_session_callbacks session_callbacks = {};
-	static sp_session_config spconfig = {};
 
 	PWSTR path;
 	if (SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &path))
@@ -101,6 +97,10 @@ SpotifySession::SpotifySession() :
 
 	if (strcat_s(lpath, "\\foo_input_spotify"))
 		throw pfc::exception("couldn't append to path");
+
+#ifndef LIBDESPOTIFY_H
+	static sp_session_callbacks session_callbacks = {};
+	static sp_session_config spconfig = {};
 
 	spconfig.api_version = SPOTIFY_API_VERSION,
 	spconfig.cache_location = lpath;
@@ -129,6 +129,10 @@ SpotifySession::SpotifySession() :
 
 		assertSucceeds("creating session", sp_session_create(&spconfig, &sp));
 	}
+#else
+	sp = despotify_init_client(callback, NULL, true, true);
+	sp->client_callback_data = this;
+#endif
 }
 
 SpotifySession::~SpotifySession() {
@@ -179,6 +183,7 @@ BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *contex
 		sp_session *sess = ss->getAnyway();
 		LockedCS lock(ss->getSpotifyCS());
 		sp_session_login(sess, username.get_ptr(), password.get_ptr());
+
 	}
 	ss->waitForLogin();
 	return TRUE;
@@ -193,6 +198,7 @@ void CALLBACK log_message(sp_session *sess, const char *error) {
 	console::formatter() << "spotify log: " << error;
 }
 
+#ifndef LIBDESPOTIFY_H
 void CALLBACK message_to_user(sp_session *sess, const char *message) {
 	alert(message);
 }
@@ -242,3 +248,4 @@ void CALLBACK play_token_lost(sp_session *sess)
 {
 	alert("play token lost (someone's using your account elsewhere)");
 }
+#endif
