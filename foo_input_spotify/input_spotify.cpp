@@ -150,8 +150,9 @@ public:
 		assertSucceeds("load track (including region check)", sp_session_player_load(sess, t.at(subsong)));
 		sp_session_player_play(sess, 1);
 #else
-		assertSucceeds("track is playable in this region", t.at(subsong)->playable);
-		despotify_play(sess, t.at(subsong), false);
+		assertSucceeds("track is playable in this region", !t.at(subsong)->playable);
+		if (!despotify_play(sess, t.at(subsong), false))
+			throw pfc::exception("Not playable wtf");
 #endif
 	}
 
@@ -178,9 +179,13 @@ public:
 
 		ss.buf.free(e);
 #else
-		pcm_data d;
+		pcm_data d = {};
 		pcm_data *e = &d;
-		despotify_get_pcm(ss.get(), e);
+		do {
+			int ret = despotify_get_pcm(ss.get(), e);
+			assertSucceeds("despotify_get_pcm", ret);
+		} while (0 == e->channels);
+		
 		p_chunk.set_data_fixedpoint(
 			e->buf,
 			e->len,

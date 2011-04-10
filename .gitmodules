@@ -7,3 +7,6 @@
 [submodule "foobar2000"]
 	path = foobar2000
 	url = git://git.goeswhere.com/git/foobar2000.git
+[submodule "despotify-bin"]
+	path = despotify-bin
+	url = git://git.goeswhere.com/git/despotify-bin.git

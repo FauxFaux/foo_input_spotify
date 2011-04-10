@@ -67,7 +67,9 @@ int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format, cons
 void CALLBACK end_of_track(sp_session *sess);
 void CALLBACK play_token_lost(sp_session *sess);
 #else
-void callback(struct despotify_session* ds, int signal, void* data, void* callback_data);
+void CALLBACK callback(struct despotify_session* ds, int signal, void* data, void* callback_data) {
+	MessageBox(0, L"LOL", L"", 0);
+}
 #endif
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context);
@@ -130,8 +132,9 @@ SpotifySession::SpotifySession() :
 		assertSucceeds("creating session", sp_session_create(&spconfig, &sp));
 	}
 #else
-	sp = despotify_init_client(callback, NULL, true, true);
-	sp->client_callback_data = this;
+	if (!despotify_init())
+		throw pfc::exception("despotify_init failed");
+	sp = despotify_init_client(NULL, NULL, true, true);
 #endif
 }
 
@@ -157,7 +160,9 @@ CriticalSection &SpotifySession::getSpotifyCS() {
 }
 
 void SpotifySession::waitForLogin() {
+#ifndef LIBDESPOTIFY_H
 	WaitForSingleObject(loggedInEvent, INFINITE);
+#endif
 }
 
 void SpotifySession::loggedIn(sp_error err) {
