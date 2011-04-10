@@ -1,0 +1,21 @@
+foo_input_spotify 
+
+Version: 0.1, tag v001, http://git.goeswhere.com/?p=foo_input_spotify.git;a=tag;h=refs/tags/v001
+
+BSD licensed.  Author: Chris West (FauxFaux).
+
+Beta support for Spotify, via. libspotify / Spotify Core.
+
+Completely incompatiable with any other plugins for some reason.  If you don't know what you're doing, don't use it.
+
+
+Homepage: http://git.goeswhere.com/?p=foo_input_spotify.git;a=summary
+
+LOL Submodules
+# git clone --recursive git://git.goeswhere.com/git/foo_input_spotify.git
+
+Signature in tag.
+
+c9aa29c5611eff1162599a07ac06791864a555f2 *foo_input_spotify.dll
+f05de16297767625920e50bf0de60d2a3a02406b *libspotify.dll
+84382345f582c0345cf9e7fb667f2b39aadcc817 *foo_input_spotify.pdb
