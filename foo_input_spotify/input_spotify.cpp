@@ -29,6 +29,7 @@ class InputSpotify
 
 	int channels;
 	int sampleRate;
+	bool firstPass;
 
 #define FOR_TRACKS() for (tr_iter it = t.begin(); it != t.end(); ++it)
 
@@ -154,6 +155,7 @@ public:
 		if (!despotify_play(sess, t.at(subsong), false))
 			throw pfc::exception("Not playable wtf");
 #endif
+		firstPass = true;
 	}
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
@@ -184,7 +186,18 @@ public:
 		do {
 			int ret = despotify_get_pcm(ss.get(), e);
 			assertSucceeds("despotify_get_pcm", ret);
-		} while (0 == e->channels);
+			p_abort.check();
+		} while (firstPass && 0 == e->len);
+
+		// Minor hack.  despotify_get_pcm returns an empty e:
+		// a) while it's waiting for itself to initialise
+		// b) when you're at the end of a track
+		// i.e. if firstPass is set, retry, else end-of-track:
+
+		if (0 == e->len)
+			return false;
+
+		firstPass = false;
 		
 		p_chunk.set_data_fixedpoint(
 			e->buf,
