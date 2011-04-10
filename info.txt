@@ -1,13 +1,23 @@
 foo_input_spotify 
 
-Version: 0.1, tag v001, http://git.goeswhere.com/?p=foo_input_spotify.git;a=tag;h=refs/tags/v001
+Version: 0.0.2, tag v002, http://git.goeswhere.com/?p=foo_input_spotify.git;a=tag;h=refs/tags/v002
 
 BSD licensed.  Author: Chris West (FauxFaux).
 
-Beta support for Spotify, via. libspotify / Spotify Core.
+Alpha support for Spotify, via. libdespotify.
 
-Completely incompatiable with any other plugins for some reason.  If you don't know what you're doing, don't use it.
+  * libspotify / Spotify Core fails horribly due to:
+          http://getsatisfaction.com/spotify/topics/libspotify_crashes_on_loading_access_violation 
+      Please let the Spotify authors know what you think about this.
 
+Known issues:
+  * Playlist support is gone.  Laziness due to despotify port.
+  * Will just deadlock if you use any plugins that require concurrent decoding (i.e. foo_wave_seekbar (Damn you, Zao!)).
+  * Built in debug mode (-> ugly messagebox when you start foobar2000) (don't even ask)
+  * Dynamically linked (mingw bleh)
+  * Seeking support is gone.  Despotify doesn't support seek.
+  * No password field for password
+  * Barely any error checking (i.e. getting your password or account type wrong -> apparently not a track)
 
 Homepage: http://git.goeswhere.com/?p=foo_input_spotify.git;a=summary
 
@@ -16,6 +26,4 @@ LOL Submodules
 
 Signature in tag.
 
-c9aa29c5611eff1162599a07ac06791864a555f2 *foo_input_spotify.dll
-f05de16297767625920e50bf0de60d2a3a02406b *libspotify.dll
-84382345f582c0345cf9e7fb667f2b39aadcc817 *foo_input_spotify.pdb
+708c3a717617097d4dec3f7adb9af2d5b3a16797 *user-components/foo_input_spotify/foo_input_spotify.dll
