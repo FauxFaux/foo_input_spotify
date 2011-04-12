@@ -17,6 +17,8 @@ extern "C" {
 #define sp_playlist_num_tracks(x) (x->num_tracks)
 #define sp_playlist_track(playlist, i) (playlist->tracks[i])
 #define sp_playlist_release despotify_free_playlist
+#define sp_album_release despotify_free_album_browse
+#define sp_album album_browse
 #define sp_track_duration(x) (x->length)
 #define sp_track_artist(x, zero) (x->artist)
 #define sp_artist_name(x) (x->name)
