@@ -11,13 +11,13 @@ Alpha support for Spotify, via. libdespotify.
       Please let the Spotify authors know what you think about this.
 
 Known issues:
-  * Playlist support is gone.  Laziness due to despotify port.
   * Will just deadlock if you use any plugins that require concurrent decoding (i.e. foo_wave_seekbar (Damn you, Zao!)).
   * Built in debug mode (-> ugly messagebox when you start foobar2000) (don't even ask)
   * Dynamically linked (mingw bleh)
   * Seeking support is gone.  Despotify doesn't support seek.
   * No password field for password
   * Barely any error checking (i.e. getting your password or account type wrong -> apparently not a track)
+  * Sometimes tracks skip instead of waiting to buffer
 
 Homepage: http://git.goeswhere.com/?p=foo_input_spotify.git;a=summary
 
