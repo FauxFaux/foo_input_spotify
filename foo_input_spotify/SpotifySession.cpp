@@ -9,22 +9,13 @@
 
 #include "SpotifySession.h"
 
-#ifndef LIBDESPOTIFY_H
-DWORD WINAPI spotifyThread(void *data) {
-	SpotifyThreadData *dat = (SpotifyThreadData*)data;
-
-	int nextTimeout = INFINITE;
-	while (true) {
-		WaitForSingleObject(dat->processEventsEvent, nextTimeout);
-		LockedCS lock(dat->cs);
-		sp_session_process_events(dat->sess, &nextTimeout);
-	}
-}
-#endif
-
-pfc::string8 &doctor(pfc::string8 &msg, sp_error err) {
+pfc::string8 doctor(const pfc::string8 &prefix, sp_session *sess) {
+	pfc::string8 msg = prefix;
 	msg += " failed: ";
-	msg += sp_error_message(err);
+	if (NULL != sess->last_error)
+		msg += sp_error_message(sess->last_error);
+	else
+		msg += "[no last error]";
 	return msg;
 }
 
@@ -33,17 +24,17 @@ void alert(pfc::string8 msg) {
 }
 
 /* @param msg "logging in" */
-void assertSucceeds(pfc::string8 msg, sp_error err) {
+void assertSucceeds(pfc::string8 msg, sp_session *sess, sp_error err) {
 	if (SP_ERROR_OK == err)
 		return;
 
-	throw pfc::exception(doctor(msg, err));
+	throw pfc::exception(doctor(msg, sess));
 }
 
-void alertIfFailure(pfc::string8 msg, sp_error err) {
+void alertIfFailure(pfc::string8 msg, sp_session *sess, sp_error err) {
 	if (SP_ERROR_OK == err)
 		return;
-	alert(doctor(msg, err));
+	alert(doctor(msg, sess));
 }
 
 // {FDE57F91-397C-45F6-B907-A40E378DDB7A}
@@ -56,21 +47,6 @@ static const GUID spotifyPasswordGuid =
 
 static advconfig_string_factory_MT spotifyUsername("Spotify Username", spotifyUsernameGuid, advconfig_entry::guid_root, 1, "", 0);
 static advconfig_string_factory_MT spotifyPassword("Spotify Password (plaintext lol)", spotifyPasswordGuid, advconfig_entry::guid_root, 2, "", 0);
-
-#ifndef LIBDESPOTIFY_H
-void CALLBACK log_message(sp_session *sess, const char *error);
-void CALLBACK message_to_user(sp_session *sess, const char *error);
-void CALLBACK start_playback(sp_session *sess);
-void CALLBACK logged_in(sp_session *sess, sp_error error);
-void CALLBACK notify_main_thread(sp_session *sess);
-int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format, const void *frames, int num_frames);
-void CALLBACK end_of_track(sp_session *sess);
-void CALLBACK play_token_lost(sp_session *sess);
-#else
-void CALLBACK callback(struct despotify_session* ds, int signal, void* data, void* callback_data) {
-	MessageBox(0, L"LOL", L"", 0);
-}
-#endif
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context);
 
@@ -100,42 +76,9 @@ SpotifySession::SpotifySession() :
 	if (strcat_s(lpath, "\\foo_input_spotify"))
 		throw pfc::exception("couldn't append to path");
 
-#ifndef LIBDESPOTIFY_H
-	static sp_session_callbacks session_callbacks = {};
-	static sp_session_config spconfig = {};
-
-	spconfig.api_version = SPOTIFY_API_VERSION,
-	spconfig.cache_location = lpath;
-	spconfig.settings_location = lpath;
-	spconfig.application_key = g_appkey;
-	spconfig.application_key_size = g_appkey_size;
-	spconfig.user_agent = "spotify-foobar2000-faux-" MYVERSION;
-	spconfig.userdata = this;
-	spconfig.callbacks = &session_callbacks;
-
-	session_callbacks.logged_in = &logged_in;
-	session_callbacks.notify_main_thread = &notify_main_thread;
-	session_callbacks.music_delivery = &music_delivery;
-	session_callbacks.play_token_lost = &play_token_lost;
-	session_callbacks.end_of_track = &end_of_track;
-	session_callbacks.log_message = &log_message;
-	session_callbacks.message_to_user = &message_to_user;
-	session_callbacks.start_playback = &start_playback;
-
-	{
-		LockedCS lock(spotifyCS);
-
-		if (NULL == CreateThread(NULL, 0, &spotifyThread, &threadData, 0, NULL)) {
-			throw pfc::exception("Couldn't create thread");
-		}
-
-		assertSucceeds("creating session", sp_session_create(&spconfig, &sp));
-	}
-#else
 	if (!despotify_init())
 		throw pfc::exception("despotify_init failed");
 	sp = despotify_init_client(NULL, NULL, true, true);
-#endif
 }
 
 SpotifySession::~SpotifySession() {
@@ -159,22 +102,6 @@ CriticalSection &SpotifySession::getSpotifyCS() {
 	return spotifyCS;
 }
 
-void SpotifySession::waitForLogin() {
-#ifndef LIBDESPOTIFY_H
-	WaitForSingleObject(loggedInEvent, INFINITE);
-#endif
-}
-
-void SpotifySession::loggedIn(sp_error err) {
-	alertIfFailure("logging in", err);
-	SetEvent(loggedInEvent);
-}
-
-void SpotifySession::processEvents() {
-	SetEvent(processEventsEvent);
-}
-
-
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context) {
 	pfc::string8 username;
 	spotifyUsername.get(username);
@@ -187,10 +114,9 @@ BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *contex
 		
 		sp_session *sess = ss->getAnyway();
 		LockedCS lock(ss->getSpotifyCS());
-		sp_session_login(sess, username.get_ptr(), password.get_ptr());
-
+		if (!sp_session_login(sess, username.get_ptr(), password.get_ptr()))
+			alert(doctor("logging-in", sess));
 	}
-	ss->waitForLogin();
 	return TRUE;
 }
 

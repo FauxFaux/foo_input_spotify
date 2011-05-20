@@ -74,4 +74,4 @@ public:
 	void processEvents();
 };
 
-void assertSucceeds(pfc::string8 msg, sp_error err);
+void assertSucceeds(pfc::string8 msg, sp_session *sess, sp_error err);

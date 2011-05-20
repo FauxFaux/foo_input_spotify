@@ -163,7 +163,7 @@ public:
 		LockedCS lock(ss.getSpotifyCS());
 		DeOb *d = t.get();
 		sp_track *r = d->at(subsong);
-		assertSucceeds("track is playable in this region", !r->playable);
+		assertSucceeds("track is playable in this region", sess, !r->playable);
 		if (!despotify_play(sess, t->at(subsong), false))
 			throw pfc::exception("Not playable wtf");
 		firstPass = true;
@@ -172,9 +172,13 @@ public:
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
 	{
 		pcm_data d = {};
+		sp_session *sess = ss.get();
 		do {
-			int ret = despotify_get_pcm(ss.get(), &d);
-			assertSucceeds("despotify_get_pcm", ret);
+			int ret = despotify_get_pcm(sess, &d);
+			if (NULL != sess->last_error)
+				throw exception_io_data(sess->last_error);
+
+			assertSucceeds("despotify_get_pcm", sess, ret);
 			p_abort.check();
 		} while (firstPass && 0 == d.len);
 
@@ -216,6 +220,7 @@ public:
 	{
 		p_out.info_set_int("CHANNELS", channels);
 		p_out.info_set_int("SAMPLERATE", sampleRate);
+		p_out.info_set_bitrate(despotify_get_current_track(ss.get())->file_bitrate/1000);
 		return true;
 	}
 
