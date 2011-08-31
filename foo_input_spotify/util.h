@@ -6,6 +6,9 @@
 
 #include <windows.h>
 #include "boost/noncopyable.hpp"
+#include <functional>
+
+typedef std::function<std::string()> stringfunc_t;
 
 struct Gentry {
 	void *data;

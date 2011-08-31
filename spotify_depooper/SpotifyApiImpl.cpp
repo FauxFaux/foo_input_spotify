@@ -9,19 +9,7 @@ extern "C" {
 	extern const size_t g_appkey_size;
 }
 
-SpotifySession ss;
-
 #define FOR_TRACKS() for (tr_iter it = t.begin(); it != t.end(); ++it)
-
-std::vector<sp_track *> t;
-typedef std::vector<sp_track *>::iterator tr_iter;
-
-std::string url;
-
-int channels;
-int sampleRate;
-
-Buffer buf;
 
 void checkAborted() {
 	// TODO

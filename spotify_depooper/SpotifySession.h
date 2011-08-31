@@ -15,8 +15,6 @@ struct SpotifyThreadData {
 	sp_session *sess;
 };
 
-typedef std::function<std::string()> stringfunc_t;
-
 class SpotifySession {
 	INIT_ONCE initOnce;
 	sp_session *sp;
