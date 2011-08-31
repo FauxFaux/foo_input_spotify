@@ -2,6 +2,7 @@
 
 #include "util.h"
 #include <libspotify/api.h>
+#include <foobar2000.h>
 
 struct SpotifyThreadData {
 	SpotifyThreadData(CriticalSection &cs) : cs(cs) {
