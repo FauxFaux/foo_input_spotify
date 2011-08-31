@@ -15,24 +15,27 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="input_spotify.cpp">
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SpotifyApiClient.cpp">
+    <ClCompile Include="key-930.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SpotifySession.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SpotifyApiImpl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="util.h">
+    <ClInclude Include="SpotifySession.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="boost\noncopyable.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SpotifyApi.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SpotifyApiClient.h">
+    <ClInclude Include="SpotifyApiImpl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

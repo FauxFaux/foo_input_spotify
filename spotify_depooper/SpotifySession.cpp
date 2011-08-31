@@ -1,4 +1,4 @@
-#include "util.h"
+#include "../foo_input_spotify/util.h"
 
 #include <libspotify/api.h>
 
@@ -9,9 +9,16 @@
 
 #include "SpotifySession.h"
 
+#include <string>
+#include <utility>
+
 extern "C" {
 	extern const uint8_t g_appkey[];
 	extern const size_t g_appkey_size;
+}
+
+void complain(const char *msg, std::string msg2) {
+	// TODO
 }
 
 DWORD WINAPI spotifyThread(void *data) {
@@ -25,41 +32,29 @@ DWORD WINAPI spotifyThread(void *data) {
 	}
 }
 
-pfc::string8 &doctor(pfc::string8 &msg, sp_error err) {
+std::string &doctor(std::string &msg, sp_error err) {
 	msg += " failed: ";
 	msg += sp_error_message(err);
 	return msg;
 }
 
-void alert(pfc::string8 msg) {
-	console::complain("boom", msg.toString());
+void alert(std::string msg) {
+	complain("boom", msg);
 }
 
 /* @param msg "logging in" */
-void assertSucceeds(pfc::string8 msg, sp_error err) {
+void assertSucceeds(std::string msg, sp_error err) {
 	if (SP_ERROR_OK == err)
 		return;
 
-	throw pfc::exception(doctor(msg, err));
+	throw std::exception(doctor(msg, err).c_str());
 }
 
-void alertIfFailure(pfc::string8 msg, sp_error err) {
+void alertIfFailure(std::string msg, sp_error err) {
 	if (SP_ERROR_OK == err)
 		return;
 	alert(doctor(msg, err));
 }
-
-// {FDE57F91-397C-45F6-B907-A40E378DDB7A}
-static const GUID spotifyUsernameGuid = 
-{ 0xfde57f91, 0x397c, 0x45f6, { 0xb9, 0x7, 0xa4, 0xe, 0x37, 0x8d, 0xdb, 0x7a } };
-
-// {543780A4-2EC2-4EFE-966E-4AC491ACADBA}
-static const GUID spotifyPasswordGuid = 
-{ 0x543780a4, 0x2ec2, 0x4efe, { 0x96, 0x6e, 0x4a, 0xc4, 0x91, 0xac, 0xad, 0xba } };
-
-static advconfig_string_factory_MT spotifyUsername("Spotify Username", spotifyUsernameGuid, advconfig_entry::guid_root, 1, "", 0);
-static advconfig_string_factory_MT spotifyPassword("Spotify Password (plaintext lol)", spotifyPasswordGuid, advconfig_entry::guid_root, 2, "", 0);
-
 
 void CALLBACK log_message(sp_session *sess, const char *error);
 void CALLBACK message_to_user(sp_session *sess, const char *error);
@@ -72,9 +67,10 @@ void CALLBACK play_token_lost(sp_session *sess);
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context);
 
-SpotifySession::SpotifySession() :
+SpotifySession::SpotifySession(stringfunc_t username, stringfunc_t password) :
 		loggedInEvent(CreateEvent(NULL, TRUE, FALSE, NULL)),
-		threadData(spotifyCS) {
+		threadData(spotifyCS),
+		getUsername(username), getPassword(password) {
 
 	processEventsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
@@ -88,18 +84,18 @@ SpotifySession::SpotifySession() :
 
 	PWSTR path;
 	if (SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &path))
-		throw pfc::exception("couldn't get local app data path");
+		throw std::exception("couldn't get local app data path");
 
 	size_t num;
 	char lpath[MAX_PATH];
 	if (wcstombs_s(&num, lpath, MAX_PATH, path, MAX_PATH)) {
 		CoTaskMemFree(path);
-		throw pfc::exception("couldn't convert local app data path");
+		throw std::exception("couldn't convert local app data path");
 	}
 	CoTaskMemFree(path);
 
 	if (strcat_s(lpath, "\\foo_input_spotify"))
-		throw pfc::exception("couldn't append to path");
+		throw std::exception("couldn't append to path");
 
 	spconfig.api_version = SPOTIFY_API_VERSION,
 	spconfig.cache_location = lpath;
@@ -123,7 +119,7 @@ SpotifySession::SpotifySession() :
 		LockedCS lock(spotifyCS);
 
 		if (NULL == CreateThread(NULL, 0, &spotifyThread, &threadData, 0, NULL)) {
-			throw pfc::exception("Couldn't create thread");
+			throw std::exception("Couldn't create thread");
 		}
 
 		assertSucceeds("creating session", sp_session_create(&spconfig, &sp));
@@ -166,18 +162,11 @@ void SpotifySession::processEvents() {
 
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context) {
-	pfc::string8 username;
-	spotifyUsername.get(username);
-
-	pfc::string8 password;
-	spotifyPassword.get(password);
-
 	SpotifySession *ss = static_cast<SpotifySession *>(param);
 	{
-		
 		sp_session *sess = ss->getAnyway();
 		LockedCS lock(ss->getSpotifyCS());
-		sp_session_login(sess, username.get_ptr(), password.get_ptr(), false);
+		sp_session_login(sess, ss->getUsername().c_str(), ss->getPassword().c_str(), false);
 	}
 	ss->waitForLogin();
 	return TRUE;
@@ -189,7 +178,7 @@ SpotifySession *from(sp_session *sess) {
 }
 
 void CALLBACK log_message(sp_session *sess, const char *error) {
-	console::formatter() << "spotify log: " << error;
+	complain("spotify log: ", error);
 }
 
 void CALLBACK message_to_user(sp_session *sess, const char *message) {

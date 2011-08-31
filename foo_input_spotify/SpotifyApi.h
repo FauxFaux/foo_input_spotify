@@ -2,10 +2,10 @@
 #include "util.h"
 
 struct SpotifyApi {
-	void load(const char *url);
-	void freeTracks();
-	void initialise(int subsong);
-	uint32_t currentSubsongCount();
-	Gentry *take();
-	void free(Gentry *entry);
+	virtual void load(const char *url) = 0;
+	virtual void freeTracks() = 0;
+	virtual void initialise(int subsong) = 0;
+	virtual uint32_t currentSubsongCount() = 0;
+	virtual Gentry *take() = 0;
+	virtual void free(Gentry *entry) = 0;
 };

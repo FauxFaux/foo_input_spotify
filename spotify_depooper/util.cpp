@@ -1,4 +1,4 @@
-#include "util.h"
+#include "../foo_input_spotify/util.h"
 
 Buffer::Buffer() : entries(0), ptr(0) {
 	InitializeConditionVariable(&bufferNotEmpty);

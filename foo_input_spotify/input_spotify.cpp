@@ -10,9 +10,21 @@
 #include <stdlib.h>
 #include <vector>
 
-#include "SpotifyApi.h"
+#include "SpotifyApiClient.h"
 
-SpotifyApi api;
+std::auto_ptr<SpotifyApi> api(new SpotifyApiClient());
+
+// {FDE57F91-397C-45F6-B907-A40E378DDB7A}
+static const GUID spotifyUsernameGuid = 
+{ 0xfde57f91, 0x397c, 0x45f6, { 0xb9, 0x7, 0xa4, 0xe, 0x37, 0x8d, 0xdb, 0x7a } };
+
+// {543780A4-2EC2-4EFE-966E-4AC491ACADBA}
+static const GUID spotifyPasswordGuid = 
+{ 0x543780a4, 0x2ec2, 0x4efe, { 0x96, 0x6e, 0x4a, 0xc4, 0x91, 0xac, 0xad, 0xba } };
+
+static advconfig_string_factory_MT spotifyUsername("Spotify Username", spotifyUsernameGuid, advconfig_entry::guid_root, 1, "", 0);
+static advconfig_string_factory_MT spotifyPassword("Spotify Password (plaintext lol)", spotifyPasswordGuid, advconfig_entry::guid_root, 2, "", 0);
+
 
 class InputSpotify
 {
@@ -20,7 +32,7 @@ class InputSpotify
 	int sampleRate;
 
 	void freeTracks() {
-		api.freeTracks();
+		api->freeTracks();
 	}
 
 public:
@@ -35,7 +47,7 @@ public:
 	void open( service_ptr_t<file> m_file, const char * p_path, t_input_open_reason p_reason, abort_callback & p_abort )
 	{
 		if ( p_reason == input_open_info_write ) throw exception_io_data();
-		api.load(p_path);
+		api->load(p_path);
 	}
 
 	void get_info(t_int32 subsong, file_info & p_info, abort_callback & p_abort )
@@ -59,15 +71,15 @@ public:
 
 	void decode_initialize(t_int32 subsong, unsigned p_flags, abort_callback & p_abort )
 	{
-		api.initialise(subsong);
+		api->initialise(subsong);
 	}
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
 	{
-		Gentry *e = api.take();
+		Gentry *e = api->take();
 
 		if (NULL == e->data) {
-			api.free(e);
+			api->free(e);
 			return false;
 		}
 
@@ -82,7 +94,7 @@ public:
 		channels = e->channels;
 		sampleRate = e->sampleRate;
 
-		api.free(e);
+		api->free(e);
 
 		return true;
 	}
@@ -137,7 +149,7 @@ public:
 	}
 
 	t_uint32 get_subsong_count() {
-		return api.currentSubsongCount();
+		return api->currentSubsongCount();
 	}
 
 	t_uint32 get_subsong(t_uint32 song) {

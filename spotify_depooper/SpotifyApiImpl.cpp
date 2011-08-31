@@ -1,4 +1,4 @@
-#include "SpotifyApi.h"
+#include "SpotifyApiImpl.h"
 
 #include "SpotifySession.h"
 
@@ -32,14 +32,14 @@ struct io_data_exception : std::exception {
 	}
 };
 
-void SpotifyApi::freeTracks() {
+void SpotifyApiImpl::freeTracks() {
 	FOR_TRACKS()
 		sp_track_release(*it);
 	t.clear();
 }
 
 
-void SpotifyApi::load(const char *p_path) {
+void SpotifyApiImpl::load(const char *p_path) {
 	sp_session *sess = ss.get();
 
 	{
@@ -107,7 +107,7 @@ void SpotifyApi::load(const char *p_path) {
 	}
 }
 
-void SpotifyApi::initialise(int subsong) {
+void SpotifyApiImpl::initialise(int subsong) {
 	ss.buf.flush();
 	sp_session *sess = ss.get();
 
@@ -116,14 +116,14 @@ void SpotifyApi::initialise(int subsong) {
 	sp_session_player_play(sess, 1);
 }
 
-uint32_t SpotifyApi::currentSubsongCount() {
+uint32_t SpotifyApiImpl::currentSubsongCount() {
 	return t.size();
 }
 
-Gentry *SpotifyApi::take() {
+Gentry *SpotifyApiImpl::take() {
 	return NULL;
 }
 
-void SpotifyApi::free(Gentry *entry) {
+void SpotifyApiImpl::free(Gentry *entry) {
 
 }

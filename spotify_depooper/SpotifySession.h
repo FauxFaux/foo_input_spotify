@@ -1,8 +1,10 @@
 #pragma once
 
-#include "util.h"
+#include "../foo_input_spotify/util.h"
+
 #include <libspotify/api.h>
-#include <foobar2000.h>
+#include <string>
+#include <functional>
 
 struct SpotifyThreadData {
 	SpotifyThreadData(CriticalSection &cs) : cs(cs) {
@@ -12,6 +14,8 @@ struct SpotifyThreadData {
 	CriticalSection &cs;
 	sp_session *sess;
 };
+
+typedef std::function<std::string()> stringfunc_t;
 
 class SpotifySession {
 	INIT_ONCE initOnce;
@@ -23,7 +27,7 @@ class SpotifySession {
 public:
 	Buffer buf;
 
-	SpotifySession();
+	SpotifySession(stringfunc_t username, stringfunc_t password);
 
 	~SpotifySession();
 
@@ -38,6 +42,9 @@ public:
 	void loggedIn(sp_error err);
 
 	void processEvents();
+
+	stringfunc_t getUsername;
+	stringfunc_t getPassword;
 };
 
-void assertSucceeds(pfc::string8 msg, sp_error err);
+void assertSucceeds(std::string msg, sp_error err);

@@ -9,6 +9,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pfc", "foobar-sdk\pfc\pfc.v
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "foobar2000_component_client", "foobar-sdk\foobar2000\foobar2000_component_client\foobar2000_component_client.vcxproj", "{71AD2674-065B-48F5-B8B0-E1F9D3892081}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "spotify_depooper", "spotify_depooper\spotify_depooper.vcxproj", "{773306B5-C446-406C-A17D-2AE670AF124A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{02F13FAE-C9D9-4C70-A691-582C3B49B15C} = {02F13FAE-C9D9-4C70-A691-582C3B49B15C}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -47,6 +52,12 @@ Global
 		{71AD2674-065B-48F5-B8B0-E1F9D3892081}.Release|Win32.Build.0 = Release|Win32
 		{71AD2674-065B-48F5-B8B0-E1F9D3892081}.Release|x64.ActiveCfg = Release|x64
 		{71AD2674-065B-48F5-B8B0-E1F9D3892081}.Release|x64.Build.0 = Release|x64
+		{773306B5-C446-406C-A17D-2AE670AF124A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{773306B5-C446-406C-A17D-2AE670AF124A}.Debug|Win32.Build.0 = Debug|Win32
+		{773306B5-C446-406C-A17D-2AE670AF124A}.Debug|x64.ActiveCfg = Debug|Win32
+		{773306B5-C446-406C-A17D-2AE670AF124A}.Release|Win32.ActiveCfg = Release|Win32
+		{773306B5-C446-406C-A17D-2AE670AF124A}.Release|Win32.Build.0 = Release|Win32
+		{773306B5-C446-406C-A17D-2AE670AF124A}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
