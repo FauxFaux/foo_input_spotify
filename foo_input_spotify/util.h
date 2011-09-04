@@ -81,7 +81,18 @@ struct Buffer : boost::noncopyable {
 struct Pipe : boost::noncopyable {
 	HANDLE read;
 	HANDLE write;
-	Pipe();
+	Pipe() {
+		SECURITY_ATTRIBUTES sec = {};
+		sec.nLength = sizeof(SECURITY_ATTRIBUTES);
+		sec.lpSecurityDescriptor = NULL;
+		sec.bInheritHandle = TRUE;
+		CreatePipe(&read, &write, &sec, 0);
+	}
+
+	~Pipe() {
+		CloseHandle(read);
+		CloseHandle(write);
+	}
 };
 
 const int lengthLength = 8;
@@ -161,6 +172,10 @@ struct PipeIn {
 		long len;
 		ss >> len;
 		return len;
+	}
+
+	std::string takeCommand() {
+		return take(4);
 	}
 
 	std::string takeString() {

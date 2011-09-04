@@ -55,11 +55,3 @@ void Buffer::free(Gentry *e) {
 	delete[] e->data;
 	delete e;
 }
-
-Pipe::Pipe() {
-	SECURITY_ATTRIBUTES sec = {};
-	sec.nLength = sizeof(SECURITY_ATTRIBUTES);
-	sec.lpSecurityDescriptor = NULL;
-	sec.bInheritHandle = TRUE;
-	CreatePipe(&read, &write, &sec, 0);
-}

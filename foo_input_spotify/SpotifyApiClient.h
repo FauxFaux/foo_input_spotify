@@ -1,26 +1,62 @@
 #include "SpotifyApi.h"
 #include <memory>
 #include <sstream>
+#include <foobar2000.h>
+
+struct FeedbackThreadData {
+	FeedbackThreadData(PipeOut to, PipeIn from)	:
+		to(to), from(from) {
+	}
+
+	PipeOut to;
+	PipeIn from;
+};
+
+DWORD WINAPI feedbackThread(void *data) {
+	FeedbackThreadData *d = static_cast<FeedbackThreadData*>(data);
+	while (true) {
+		const std::string cmd = d->from.takeCommand();
+		if ("stop" == cmd) {
+			return 0;
+		} else {
+			console::formatter() << "invalid command: " << cmd.c_str();
+		}
+	}
+}
+
 
 class SpotifyApiClient : SpotifyApi {
 	typedef std::auto_ptr<Pipe> pp;
 	pp toChild;
 	pp fromChild;
+	pp feedbackToChild;
+	pp feedbackFromChild;
+
 	PipeOut to;
 	PipeIn from;
 
-	Buffer buf;
+	PipeOut feedTo;
+	PipeIn feedFrom;
 
 	HANDLE child;
+	HANDLE thread;
+
+	FeedbackThreadData threadData;
 
 public:
 	SpotifyApiClient() : child(NULL), 
 			toChild(pp(new Pipe())),
 			fromChild(pp(new Pipe())),
+			feedbackToChild(pp(new Pipe())),
+			feedbackFromChild(pp(new Pipe())),
 			to(PipeOut(toChild->write)),
-			from(PipeIn(fromChild->read)) {
+			from(PipeIn(fromChild->read)),
+			feedTo(PipeOut(feedbackToChild->write)),
+			feedFrom(PipeIn(feedbackFromChild->read)),
+			threadData(feedTo, feedFrom) {
 		std::wstringstream ss(L"spotify_depooper.exe ");
-		ss << toChild->read << " " << fromChild->write;
+		ss << toChild->read << " " << fromChild->write << " " 
+			<< feedbackToChild->read << " " << feedbackFromChild->write;
 		STARTUPINFO si = {};
 		si.cb = sizeof(STARTUPINFO);
 		PROCESS_INFORMATION pi = {};
@@ -37,6 +73,14 @@ public:
 		CloseHandle(si.hStdError);
 		CloseHandle(pi.hThread);
 		child = pi.hProcess;
+
+		threadData.to = feedTo;
+		threadData.from = feedFrom;
+
+		thread = CreateThread(NULL, 0, &feedbackThread, &threadData, 0, 0);
+		if (NULL == thread) {
+			throw std::exception("couldn't create feedback thread");
+		}
 	}
 
 	~SpotifyApiClient() {
