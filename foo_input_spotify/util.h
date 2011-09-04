@@ -131,6 +131,17 @@ struct PipeOut {
 			throw std::exception("couldn't communicate with child");
 		return *this;
 	}
+
+	PipeOut &doReturn(std::function<void()> func) {
+		try {
+			func();
+			put("OK");
+		} catch (std::exception &e) {
+			put("EX");
+			arg(e.what());
+		}
+		return *this;
+	}
 };
 
 struct PipeIn {

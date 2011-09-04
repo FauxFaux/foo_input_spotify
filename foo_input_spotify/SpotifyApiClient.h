@@ -87,6 +87,8 @@ public:
 		if (child) {
 			TerminateProcess(child, 1);
 		}
+
+		CloseHandle(child);
 	}
 
 	virtual void load(std::string url) {
