@@ -27,13 +27,13 @@ void SpotifyApiImpl::freeTracks() {
 }
 
 
-void SpotifyApiImpl::load(const char *p_path) {
+void SpotifyApiImpl::load(std::string p_path) {
 	sp_session *sess = ss.get();
 
 	{
 		LockedCS lock(ss.getSpotifyCS());
 
-		sp_link *link = sp_link_create_from_string(p_path);
+		sp_link *link = sp_link_create_from_string(p_path.c_str());
 		if (NULL == link)
 			throw io_data_exception("couldn't parse url");
 

@@ -12,8 +12,6 @@
 
 #include "SpotifyApiClient.h"
 
-std::auto_ptr<SpotifyApi> api(new SpotifyApiClient());
-
 // {FDE57F91-397C-45F6-B907-A40E378DDB7A}
 static const GUID spotifyUsernameGuid = 
 { 0xfde57f91, 0x397c, 0x45f6, { 0xb9, 0x7, 0xa4, 0xe, 0x37, 0x8d, 0xdb, 0x7a } };
@@ -28,6 +26,8 @@ static advconfig_string_factory_MT spotifyPassword("Spotify Password (plaintext 
 
 class InputSpotify
 {
+	std::auto_ptr<SpotifyApiClient> api;
+
 	int channels;
 	int sampleRate;
 
@@ -37,7 +37,8 @@ class InputSpotify
 
 public:
 
-	InputSpotify() {
+	InputSpotify() :
+	  api(new SpotifyApiClient()) {
 	}
 
 	~InputSpotify() {

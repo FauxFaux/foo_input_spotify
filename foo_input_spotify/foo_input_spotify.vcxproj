@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="boost\noncopyable.hpp" />
+    <ClInclude Include="DepooperClient.h" />
     <ClInclude Include="SpotifyApi.h" />
     <ClInclude Include="SpotifyApiClient.h" />
     <ClInclude Include="util.h" />

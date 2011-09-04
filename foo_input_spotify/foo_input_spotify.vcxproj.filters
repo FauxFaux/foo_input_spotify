@@ -35,5 +35,8 @@
     <ClInclude Include="SpotifyApiClient.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DepooperClient.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
