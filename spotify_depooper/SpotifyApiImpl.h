@@ -7,7 +7,7 @@
 
 
 struct SpotifyApiImpl : SpotifyApi {
-	virtual void load(const char *url) ;
+	virtual void load(std::string url) ;
 	virtual void freeTracks();
 	virtual void initialise(int subsong);
 	virtual uint32_t currentSubsongCount();

@@ -2,7 +2,7 @@
 #include "util.h"
 
 struct SpotifyApi {
-	virtual void load(const char *url) = 0;
+	virtual void load(std::string url) = 0;
 	virtual void freeTracks() = 0;
 	virtual void initialise(int subsong) = 0;
 	virtual uint32_t currentSubsongCount() = 0;
