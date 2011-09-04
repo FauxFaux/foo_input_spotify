@@ -22,10 +22,12 @@ class SpotifySession {
 	SpotifyThreadData threadData;
 	CriticalSection spotifyCS;
 	HANDLE processEventsEvent;
+	funcstr_t warn;
+
 public:
 	Buffer buf;
 
-	SpotifySession(stringfunc_t username, stringfunc_t password);
+	SpotifySession(stringfunc_t username, stringfunc_t password, funcstr_t warn);
 
 	~SpotifySession();
 
@@ -43,6 +45,10 @@ public:
 
 	stringfunc_t getUsername;
 	stringfunc_t getPassword;
+
+	void complain(const char *msg, std::string msg2);
+	void alert(std::string msg2);
+	void alertIfFailure(std::string msg, sp_error err);
 };
 
 void assertSucceeds(std::string msg, sp_error err);

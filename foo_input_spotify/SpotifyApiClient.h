@@ -4,12 +4,14 @@
 #include <foobar2000.h>
 
 struct FeedbackThreadData {
-	FeedbackThreadData(PipeOut to, PipeIn from)	:
-		to(to), from(from) {
+	FeedbackThreadData(PipeOut to, PipeIn from, stringfunc_t username, stringfunc_t password) :
+		to(to), from(from), username(username), password(password) {
 	}
 
 	PipeOut to;
 	PipeIn from;
+
+	stringfunc_t username, password;
 };
 
 DWORD WINAPI feedbackThread(void *data) {
@@ -18,6 +20,15 @@ DWORD WINAPI feedbackThread(void *data) {
 		const std::string cmd = d->from.takeCommand();
 		if ("stop" == cmd) {
 			return 0;
+		} else if ("sync" == cmd) {
+		} else if ("user" == cmd) {
+			d->to.arg(d->username());
+		} else if ("pass" == cmd) {
+			d->to.arg(d->password());
+		} else if ("excp" == cmd) {
+			console::formatter() << "bang! " << d->from.takeString().c_str();
+		} else if ("warn" == cmd) {
+			console::formatter() << "log " << d->from.takeString().c_str();
 		} else {
 			console::formatter() << "invalid command: " << cmd.c_str();
 		}
@@ -43,8 +54,11 @@ class SpotifyApiClient : SpotifyApi {
 
 	FeedbackThreadData threadData;
 
+//	stringfunc_t username, password;
+
 public:
-	SpotifyApiClient() : child(NULL), 
+	SpotifyApiClient(stringfunc_t username, stringfunc_t password) : child(NULL), 
+			//username(username), password(password),
 			toChild(pp(new Pipe())),
 			fromChild(pp(new Pipe())),
 			feedbackToChild(pp(new Pipe())),
@@ -53,8 +67,8 @@ public:
 			from(PipeIn(fromChild->read)),
 			feedTo(PipeOut(feedbackToChild->write)),
 			feedFrom(PipeIn(feedbackFromChild->read)),
-			threadData(feedTo, feedFrom) {
-		std::wstringstream ss(L"spotify_depooper.exe ");
+			threadData(feedTo, feedFrom, username, password) {
+		std::wstringstream ss; ss << L"user-components\\foo_input_spotify\\spotify_depooper.exe ";
 		ss << toChild->read << " " << fromChild->write << " " 
 			<< feedbackToChild->read << " " << feedbackFromChild->write;
 		STARTUPINFO si = {};
@@ -62,9 +76,9 @@ public:
 		PROCESS_INFORMATION pi = {};
 		LPWSTR arg = _wcsdup(ss.str().c_str());
 		
-		if (FAILED(CreateProcess(NULL, arg, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))) {
+		if (0 == CreateProcess(NULL, arg, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
 			::free(arg);
-			throw std::exception("couldn't create child process");
+			throw win32exception("couldn't create child process");
 		}
 		::free(arg);
 
@@ -112,7 +126,7 @@ public:
 	}
 
 	virtual Gentry *take() {
-		to.sync().operation("ssct");
+		to.sync().operation("take");
 		return from.sync().returnGentry();
 	}
 

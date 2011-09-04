@@ -109,9 +109,9 @@ uint32_t SpotifyApiImpl::currentSubsongCount() {
 }
 
 Gentry *SpotifyApiImpl::take() {
-	return NULL;
+	return ss.buf.take();
 }
 
 void SpotifyApiImpl::free(Gentry *entry) {
-
+	ss.buf.free(entry);
 }

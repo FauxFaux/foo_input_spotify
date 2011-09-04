@@ -38,7 +38,15 @@ class InputSpotify
 public:
 
 	InputSpotify() :
-	  api(new SpotifyApiClient()) {
+	  api(new SpotifyApiClient([]() -> std::string { 
+		  pfc::string8 s;
+		  spotifyUsername.get(s);
+		  return s.toString();
+	  }, []() -> std::string { 
+		  pfc::string8 s;
+		  spotifyPassword.get(s);
+		  return s.toString();
+	  })) {
 	}
 
 	~InputSpotify() {

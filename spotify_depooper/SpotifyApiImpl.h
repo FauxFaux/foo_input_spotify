@@ -14,8 +14,8 @@ struct SpotifyApiImpl : SpotifyApi {
 	virtual Gentry *take();
 	virtual void free(Gentry *entry);
 
-	SpotifyApiImpl(stringfunc_t username, stringfunc_t password) :
-		ss(username, password) {
+	SpotifyApiImpl(stringfunc_t username, stringfunc_t password, funcstr_t warn) :
+		ss(username, password, warn) {
 	}
 
 private:
@@ -28,6 +28,4 @@ private:
 
 	int channels;
 	int sampleRate;
-
-	Buffer buf;
 };

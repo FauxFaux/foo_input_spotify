@@ -14,6 +14,34 @@
 #include <stdint.h>
 
 typedef std::function<std::string()> stringfunc_t;
+typedef std::function<void(std::string)> funcstr_t;
+
+struct win32exception : std::exception {
+	std::string makeMsg(const std::string &cause) {
+		std::stringstream ss;
+		DWORD err = GetLastError();
+		ss << cause << ", win32: " << err << " (" << std::hex << err << "): ???";
+		return ss.str();
+#if ARGH
+		LPVOID lpMsgBuf;
+		FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				err,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR) &lpMsgBuf,
+				0, NULL );
+		LocalFree(lpMsgBuf);
+//		pfc::stringcvt::string_utf8_from_wide((wchar_t*)lpMsgBuf, wcslen((wchar_t*)lpMsgBuf));
+//		WideCharToMultiByte(CP_UTF8, 0, lpMsgBuf, -1, buf.data(), buf.size(), NULL, NULL);
+#endif
+	}
+
+	win32exception(std::string cause) : std::exception(makeMsg(cause).c_str()) {
+	}
+};
 
 struct Gentry {
 	void *data;
@@ -86,7 +114,8 @@ struct Pipe : boost::noncopyable {
 		sec.nLength = sizeof(SECURITY_ATTRIBUTES);
 		sec.lpSecurityDescriptor = NULL;
 		sec.bInheritHandle = TRUE;
-		CreatePipe(&read, &write, &sec, 0);
+		if (!CreatePipe(&read, &write, &sec, 0))
+			throw win32exception("Couldn't create pipe");
 	}
 
 	~Pipe() {
@@ -127,8 +156,22 @@ struct PipeOut {
 	}
 
 	PipeOut &put(const std::string &str) {
-		if (FAILED(WriteFile(h, str.c_str(), str.size(), NULL, NULL)))
-			throw std::exception("couldn't communicate with child");
+		DWORD written = 0;
+		if (FAILED(WriteFile(h, str.c_str(), str.size(), &written, NULL)))
+			throw win32exception("couldn't communicate with child");
+
+		if (written != str.size())
+			throw std::exception("not entirely written");
+
+		return *this;
+	}
+
+	PipeOut &doReturnInt(std::function<int()> func) {
+		int i;
+		doReturn([&]() {
+			i = func();
+		});
+		arg(i);
 		return *this;
 	}
 
@@ -169,6 +212,7 @@ struct PipeIn {
 	}
 
 	Gentry *returnGentry() {
+		checkReturn();
 		Gentry *entry = new Gentry;
 		entry->channels = takeLen();
 		entry->sampleRate = takeLen();
@@ -195,8 +239,13 @@ struct PipeIn {
 
 	std::string take(const size_t len) {
 		std::vector<char> buf(len);
-		if (FAILED(ReadFile(h, buf.data(), len, NULL, NULL)))
-			throw std::exception("couldn't communicate with child");
+		DWORD read = 0;
+		if (FAILED(ReadFile(h, buf.data(), len, &read, NULL)))
+			throw win32exception("couldn't communicate with child");
+
+		if (read != len)
+			throw std::exception("Not entirely read");
+
 		return std::string(buf.begin(), buf.end());
 	}
 

@@ -17,8 +17,8 @@ extern "C" {
 	extern const size_t g_appkey_size;
 }
 
-void complain(const char *msg, std::string msg2) {
-	// TODO
+void SpotifySession::complain(const char *msg, std::string msg2) {
+	warn(msg + msg2);
 }
 
 DWORD WINAPI spotifyThread(void *data) {
@@ -38,7 +38,7 @@ std::string &doctor(std::string &msg, sp_error err) {
 	return msg;
 }
 
-void alert(std::string msg) {
+void SpotifySession::alert(std::string msg) {
 	complain("boom", msg);
 }
 
@@ -50,7 +50,7 @@ void assertSucceeds(std::string msg, sp_error err) {
 	throw std::exception(doctor(msg, err).c_str());
 }
 
-void alertIfFailure(std::string msg, sp_error err) {
+void SpotifySession::alertIfFailure(std::string msg, sp_error err) {
 	if (SP_ERROR_OK == err)
 		return;
 	alert(doctor(msg, err));
@@ -67,10 +67,12 @@ void CALLBACK play_token_lost(sp_session *sess);
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context);
 
-SpotifySession::SpotifySession(stringfunc_t username, stringfunc_t password) :
+SpotifySession::SpotifySession(stringfunc_t username, stringfunc_t password, funcstr_t warn) :
 		loggedInEvent(CreateEvent(NULL, TRUE, FALSE, NULL)),
 		threadData(spotifyCS),
-		getUsername(username), getPassword(password) {
+		getUsername(username), getPassword(password), warn(warn) {
+
+	alert("Just in case");
 
 	processEventsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
@@ -79,12 +81,16 @@ SpotifySession::SpotifySession(stringfunc_t username, stringfunc_t password) :
 
 	memset(&initOnce, 0, sizeof(INIT_ONCE));
 
+	alert("Here");
+
 	static sp_session_callbacks session_callbacks = {};
 	static sp_session_config spconfig = {};
 
 	PWSTR path;
 	if (SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &path))
 		throw std::exception("couldn't get local app data path");
+
+	alert("And here");
 
 	size_t num;
 	char lpath[MAX_PATH];
@@ -93,6 +99,8 @@ SpotifySession::SpotifySession(stringfunc_t username, stringfunc_t password) :
 		throw std::exception("couldn't convert local app data path");
 	}
 	CoTaskMemFree(path);
+
+	alert("I am the moon-key");
 
 	if (strcat_s(lpath, "\\foo_input_spotify"))
 		throw std::exception("couldn't append to path");
@@ -115,15 +123,18 @@ SpotifySession::SpotifySession(stringfunc_t username, stringfunc_t password) :
 	session_callbacks.message_to_user = &message_to_user;
 	session_callbacks.start_playback = &start_playback;
 
+	alert("Going to lock spotifyCS");
 	{
 		LockedCS lock(spotifyCS);
-
+		alert("Locked");
 		if (NULL == CreateThread(NULL, 0, &spotifyThread, &threadData, 0, NULL)) {
 			throw std::exception("Couldn't create thread");
 		}
 
+		alert("creating session");
 		assertSucceeds("creating session", sp_session_create(&spconfig, &sp));
 	}
+	alert("done construct");
 }
 
 SpotifySession::~SpotifySession() {
@@ -154,6 +165,7 @@ void SpotifySession::waitForLogin() {
 void SpotifySession::loggedIn(sp_error err) {
 	alertIfFailure("logging in", err);
 	SetEvent(loggedInEvent);
+	alert("Log-in complete");
 }
 
 void SpotifySession::processEvents() {
@@ -178,19 +190,21 @@ SpotifySession *from(sp_session *sess) {
 }
 
 void CALLBACK log_message(sp_session *sess, const char *error) {
-	complain("spotify log: ", error);
+	from(sess)->complain("spotify log: ", error);
 }
 
 void CALLBACK message_to_user(sp_session *sess, const char *message) {
-	alert(message);
+	from(sess)->alert(message);
 }
 
 void CALLBACK start_playback(sp_session *sess) {
+	from(sess)->alert("play started");
 	return;
 }
 
 void CALLBACK logged_in(sp_session *sess, sp_error error)
 {
+	from(sess)->alert("logged in");
 	from(sess)->loggedIn(error);
 }
 
@@ -217,16 +231,18 @@ int CALLBACK music_delivery(sp_session *sess, const sp_audioformat *format,
 	memcpy(data, frames, s);
 
 	from(sess)->buf.add(data, s, format->sample_rate, format->channels);
+	//from(sess)->alert("Queued");
 
 	return num_frames;
 }
 
 void CALLBACK end_of_track(sp_session *sess)
 {
+	from(sess)->alert("end track");
 	from(sess)->buf.add(NULL, 0, 0, 0);
 }
 
 void CALLBACK play_token_lost(sp_session *sess)
 {
-	alert("play token lost (someone's using your account elsewhere)");
+	from(sess)->alert("play token lost (someone's using your account elsewhere)");
 }

@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <sstream>
 #include <iostream>
+#include <string>
 
 int CALLBACK WinMain(
   __in  HINSTANCE hInstance,
@@ -21,21 +22,43 @@ int CALLBACK WinMain(
 	PipeIn feedIn(feedInh);
 	PipeOut feedOut(feedOuth);
 
+	funcstr_t warn = [&](std::string msg) {
+		feedOut.sync().operation("warn").arg(msg);
+	};
+
+	warn("Pre-construct");
+
 	SpotifyApiImpl impl([&]() -> std::string {
 		feedOut.sync().operation("user");
 		return feedIn.takeString();
 	}, [&]() -> std::string {
 		feedOut.sync().operation("pass");
 		return feedIn.takeString();
-	});
+	}, warn);
+
+	warn("Post-construct, event loop");
 
 	while (true) {
 		const std::string cmd = in.sync().takeCommand();
 		if (cmd == "load") {
-			out.doReturn([&]() { impl.load(in.takeString()); });
+			out.sync().doReturn([&]() { impl.load(in.takeString()); });
+		} else if (cmd == "frtr") {
+			out.sync().doReturn([&]() { impl.freeTracks(); });
+		} else if (cmd == "init") {
+			out.sync().doReturn([&]() { impl.initialise(in.takeLen()); });
+		} else if (cmd == "take") {
+			Gentry *g;
+			warn("take command receeved");
+			out.sync().doReturn([&]() { g = impl.take(); });
+			warn("return written");
+			out.arg(g->channels).arg(g->sampleRate).arg(g->size)
+				.put(std::string(static_cast<char*>(g->data), static_cast<char*>(g->data) + g->size));
+			warn("data written");
+		} else if (cmd == "ssct") {
+			out.sync().doReturnInt([&]() { return impl.currentSubsongCount(); });
 		} else {
-			feedOut.sync().operation("excp").arg("Unknown command: " + cmd);
-			std::cout << "Unknown cmd: " << cmd << std::endl;
+			feedOut.sync().operation("excp").arg("Unknown command: '" + cmd + "'");
+			return 3;
 		}
 	}
 }
