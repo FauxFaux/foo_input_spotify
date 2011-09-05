@@ -38,6 +38,9 @@ DWORD WINAPI feedbackThread(void *data) {
 
 class SpotifyApiClient : SpotifyApi {
 	typedef std::auto_ptr<Pipe> pp;
+
+	std::function<void()> defaultCheck;
+
 	pp toChild;
 	pp fromChild;
 	pp feedbackToChild;
@@ -54,19 +57,23 @@ class SpotifyApiClient : SpotifyApi {
 
 	FeedbackThreadData threadData;
 
-//	stringfunc_t username, password;
-
 public:
-	SpotifyApiClient(stringfunc_t username, stringfunc_t password) : child(NULL), 
-			//username(username), password(password),
+	SpotifyApiClient(stringfunc_t username, stringfunc_t password) :
+			child(NULL), thread(NULL),
+			defaultCheck([&](){
+				if (WAIT_OBJECT_0 != WaitForSingleObject(child, 0))
+					throw std::exception("child went away");
+				if (WAIT_OBJECT_0 != WaitForSingleObject(thread, 0))
+					throw std::exception("thread went away");
+			}),
 			toChild(pp(new Pipe())),
 			fromChild(pp(new Pipe())),
 			feedbackToChild(pp(new Pipe())),
 			feedbackFromChild(pp(new Pipe())),
 			to(PipeOut(toChild->write)),
-			from(PipeIn(fromChild->read)),
+			from(PipeIn(fromChild->read, defaultCheck)),
 			feedTo(PipeOut(feedbackToChild->write)),
-			feedFrom(PipeIn(feedbackFromChild->read)),
+			feedFrom(PipeIn(feedbackFromChild->read, defaultCheck)),
 			threadData(feedTo, feedFrom, username, password) {
 		std::wstringstream ss; ss << L"user-components\\foo_input_spotify\\spotify_depooper.exe ";
 		ss << toChild->read << " " << fromChild->write << " " 
@@ -105,27 +112,27 @@ public:
 		CloseHandle(child);
 	}
 
-	virtual void load(std::string url) {
+	virtual void load(std::string url, nullary_t check = [](){}) {
 		to.sync().operation("load").arg(url);
 		from.sync().checkReturn();
 	}
 
-	virtual void freeTracks() {
+	virtual void freeTracks(nullary_t check = [](){}) {
 		to.sync().operation("frtr");
 		from.sync().checkReturn();
 	}
 
-	virtual void initialise(int subsong) {
+	virtual void initialise(int subsong, nullary_t check = [](){}) {
 		to.sync().operation("init").arg(subsong);
 		from.sync().checkReturn();
 	}
 
-	virtual uint32_t currentSubsongCount() {
+	virtual uint32_t currentSubsongCount(nullary_t check = [](){}) {
 		to.sync().operation("ssct");
 		return from.sync().returnUint32_t();
 	}
 
-	virtual Gentry *take() {
+	virtual Gentry *take(nullary_t check = [](){}) {
 		to.sync().operation("take");
 		return from.sync().returnGentry();
 	}

@@ -20,14 +20,14 @@ struct io_data_exception : std::exception {
 	}
 };
 
-void SpotifyApiImpl::freeTracks() {
+void SpotifyApiImpl::freeTracks(nullary_t check) {
 	FOR_TRACKS()
 		sp_track_release(*it);
 	t.clear();
 }
 
 
-void SpotifyApiImpl::load(std::string p_path) {
+void SpotifyApiImpl::load(std::string p_path, nullary_t check) {
 	sp_session *sess = ss.get();
 
 	{
@@ -95,7 +95,7 @@ void SpotifyApiImpl::load(std::string p_path) {
 	}
 }
 
-void SpotifyApiImpl::initialise(int subsong) {
+void SpotifyApiImpl::initialise(int subsong, nullary_t check) {
 	ss.buf.flush();
 	sp_session *sess = ss.get();
 
@@ -104,11 +104,11 @@ void SpotifyApiImpl::initialise(int subsong) {
 	sp_session_player_play(sess, 1);
 }
 
-uint32_t SpotifyApiImpl::currentSubsongCount() {
+uint32_t SpotifyApiImpl::currentSubsongCount(nullary_t check) {
 	return t.size();
 }
 
-Gentry *SpotifyApiImpl::take() {
+Gentry *SpotifyApiImpl::take(nullary_t check) {
 	return ss.buf.take();
 }
 

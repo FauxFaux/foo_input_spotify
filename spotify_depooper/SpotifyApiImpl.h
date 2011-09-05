@@ -7,11 +7,11 @@
 
 
 struct SpotifyApiImpl : SpotifyApi {
-	virtual void load(std::string url) ;
-	virtual void freeTracks();
-	virtual void initialise(int subsong);
-	virtual uint32_t currentSubsongCount();
-	virtual Gentry *take();
+	virtual void load(std::string url, nullary_t check = [](){}) ;
+	virtual void freeTracks(nullary_t check = [](){});
+	virtual void initialise(int subsong, nullary_t check = [](){});
+	virtual uint32_t currentSubsongCount(nullary_t check = [](){});
+	virtual Gentry *take(nullary_t check = [](){});
 	virtual void free(Gentry *entry);
 
 	SpotifyApiImpl(stringfunc_t username, stringfunc_t password, funcstr_t warn) :

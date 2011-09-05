@@ -17,9 +17,12 @@ int CALLBACK WinMain(
 	std::stringstream cmdline(lpCmdLine);
 	HANDLE inh, outh, feedInh, feedOuth;
 	cmdline >> inh >> outh >> feedInh >> feedOuth;
-	PipeIn in(inh);
+	std::function<void()> defaultCheck = [](){
+	};
+
+	PipeIn in(inh, defaultCheck);
 	PipeOut out(outh);
-	PipeIn feedIn(feedInh);
+	PipeIn feedIn(feedInh, defaultCheck);
 	PipeOut feedOut(feedOuth);
 
 	funcstr_t warn = [&](std::string msg) {

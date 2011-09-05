@@ -37,10 +37,11 @@ void Buffer::flush() {
 		free(take());
 }
 
-Gentry *Buffer::take() {
+Gentry *Buffer::take(nullary_t check) {
 	LockedCS lock(bufferLock);
 	while (entries == 0) {
-		SleepConditionVariableCS(&bufferNotEmpty, &bufferLock.cs, INFINITE);
+		SleepConditionVariableCS(&bufferNotEmpty, &bufferLock.cs, 1000);
+		check();
 	}
 
 	Gentry *e = entry[ptr++];

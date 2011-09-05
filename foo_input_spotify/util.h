@@ -15,11 +15,11 @@
 
 typedef std::function<std::string()> stringfunc_t;
 typedef std::function<void(std::string)> funcstr_t;
+typedef std::function<void()> nullary_t;
 
 struct win32exception : std::exception {
-	std::string makeMsg(const std::string &cause) {
+	std::string makeMsg(const std::string &cause, DWORD err) {
 		std::stringstream ss;
-		DWORD err = GetLastError();
 		ss << cause << ", win32: " << err << " (" << std::hex << err << "): ???";
 		return ss.str();
 #if ARGH
@@ -39,7 +39,10 @@ struct win32exception : std::exception {
 #endif
 	}
 
-	win32exception(std::string cause) : std::exception(makeMsg(cause).c_str()) {
+	win32exception(std::string cause) : std::exception(makeMsg(cause, GetLastError()).c_str()) {
+	}
+
+	win32exception(std::string cause, DWORD err) : std::exception(makeMsg(cause, err).c_str()) {
 	}
 };
 
@@ -102,7 +105,7 @@ struct Buffer : boost::noncopyable {
 	void add(void *data, size_t size, int sampleRate, int channels);
 	bool isFull();
 	void flush();
-	Gentry *take();
+	Gentry *take(nullary_t check = [](){});
 	void free(Gentry *e);
 };
 
@@ -189,59 +192,76 @@ struct PipeOut {
 
 struct PipeIn {
 	HANDLE h;
-	PipeIn(HANDLE h) : h(h) {}
-	PipeIn& sync() {
-		assertEquals("sync", take(strlen("sync")));
+	std::function<void()> check;
+	PipeIn(HANDLE h, std::function<void()> check) : h(h), check(check) {
+		COMMTIMEOUTS to = {};
+		to.WriteTotalTimeoutConstant = 
+			to.WriteTotalTimeoutMultiplier = 
+			to.ReadTotalTimeoutMultiplier =
+			to.ReadIntervalTimeout = MAXDWORD;
+
+		to.ReadTotalTimeoutConstant = 1000; //ms
+
+		if (!SetCommTimeouts(h, &to))
+			throw win32exception("Couldn't enable timeouts");
+	}
+
+	PipeIn& sync(nullary_t additionalCheck = [](){}) {
+		assertEquals("sync", take(strlen("sync"), additionalCheck));
 		return *this;
 	}
 
-	PipeIn &checkReturn() {
-		const std::string ret = take(2);
+	PipeIn &checkReturn(nullary_t additionalCheck = [](){}) {
+		const std::string ret = take(2, additionalCheck);
 		if ("OK" == ret) {
 			return *this;
 		} else if ("EX" == ret) {
-			throw std::exception(takeString().c_str());
+			throw std::exception(takeString(additionalCheck).c_str());
 		} else {
 			throw std::exception(("Unknown return type: " + ret).c_str());
 		}
 	}
 
-	uint32_t returnUint32_t() {
-		checkReturn();
-		return takeLen();
+	uint32_t returnUint32_t(nullary_t additionalCheck = [](){}) {
+		checkReturn(additionalCheck);
+		return takeLen(additionalCheck);
 	}
 
-	Gentry *returnGentry() {
-		checkReturn();
+	Gentry *returnGentry(nullary_t additionalCheck = [](){}) {
+		checkReturn(additionalCheck);
 		Gentry *entry = new Gentry;
-		entry->channels = takeLen();
-		entry->sampleRate = takeLen();
-		entry->size = takeLen();
+		entry->channels = takeLen(additionalCheck);
+		entry->sampleRate = takeLen(additionalCheck);
+		entry->size = takeLen(additionalCheck);
 		entry->data = new char[entry->size];
 		memcpy(entry->data, take(entry->size).data(), entry->size);
 		return entry;
 	}
 
-	long takeLen() {
-		std::stringstream ss(take(lengthLength));
+	long takeLen(nullary_t additionalCheck = [](){}) {
+		std::stringstream ss(take(lengthLength, additionalCheck));
 		long len;
 		ss >> len;
 		return len;
 	}
 
-	std::string takeCommand() {
-		return take(4);
+	std::string takeCommand(nullary_t additionalCheck = [](){}) {
+		return take(4, additionalCheck);
 	}
 
-	std::string takeString() {
-		return take(takeLen());
+	std::string takeString(nullary_t additionalCheck = [](){}) {
+		return take(takeLen(additionalCheck), additionalCheck);
 	}
 
-	std::string take(const size_t len) {
+	std::string take(const size_t len, nullary_t additionalCheck = [](){}) {
 		std::vector<char> buf(len);
 		DWORD read = 0;
-		if (FAILED(ReadFile(h, buf.data(), len, &read, NULL)))
-			throw win32exception("couldn't communicate with child");
+		while (!ReadFile(h, buf.data(), len, &read, NULL)) {
+			const DWORD err = GetLastError();
+			check();
+			additionalCheck();
+			throw win32exception("couldn't communicate with pipe", err);
+		}
 
 		if (read != len)
 			throw std::exception("Not entirely read");
