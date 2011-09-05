@@ -85,7 +85,9 @@ public:
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
 	{
-		Gentry *e = api->take([&]() { p_abort.check(); });
+		Gentry *e = api->take([&]() { 
+			p_abort.check();
+		});
 
 		if (NULL == e->data) {
 			api->free(e);

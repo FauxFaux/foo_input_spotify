@@ -51,12 +51,9 @@ int CALLBACK WinMain(
 			out.sync().doReturn([&]() { impl.initialise(in.takeLen()); });
 		} else if (cmd == "take") {
 			Gentry *g;
-			warn("take command receeved");
 			out.sync().doReturn([&]() { g = impl.take(); });
-			warn("return written");
 			out.arg(g->channels).arg(g->sampleRate).arg(g->size)
 				.put(std::string(static_cast<char*>(g->data), static_cast<char*>(g->data) + g->size));
-			warn("data written");
 		} else if (cmd == "ssct") {
 			out.sync().doReturnInt([&]() { return impl.currentSubsongCount(); });
 		} else {

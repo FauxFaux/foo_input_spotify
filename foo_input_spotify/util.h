@@ -194,16 +194,6 @@ struct PipeIn {
 	HANDLE h;
 	std::function<void()> check;
 	PipeIn(HANDLE h, std::function<void()> check) : h(h), check(check) {
-		COMMTIMEOUTS to = {};
-		to.WriteTotalTimeoutConstant = 
-			to.WriteTotalTimeoutMultiplier = 
-			to.ReadTotalTimeoutMultiplier =
-			to.ReadIntervalTimeout = MAXDWORD;
-
-		to.ReadTotalTimeoutConstant = 1000; //ms
-
-		if (!SetCommTimeouts(h, &to))
-			throw win32exception("Couldn't enable timeouts");
 	}
 
 	PipeIn& sync(nullary_t additionalCheck = [](){}) {
@@ -256,12 +246,20 @@ struct PipeIn {
 	std::string take(const size_t len, nullary_t additionalCheck = [](){}) {
 		std::vector<char> buf(len);
 		DWORD read = 0;
-		while (!ReadFile(h, buf.data(), len, &read, NULL)) {
-			const DWORD err = GetLastError();
+		DWORD avail = 0;
+		DWORD sleep = 5;
+		do {
+			if (!PeekNamedPipe(h, NULL, 0, NULL, &avail, NULL))
+				throw win32exception("couldn't peek");
 			check();
 			additionalCheck();
-			throw win32exception("couldn't communicate with pipe", err);
-		}
+			//Sleep(sleep);
+			if (sleep < 200)
+				;//sleep += 10;
+		} while (avail < len);
+
+		if (!ReadFile(h, buf.data(), len, &read, NULL))
+			throw win32exception("couldn't read pipe");
 
 		if (read != len)
 			throw std::exception("Not entirely read");

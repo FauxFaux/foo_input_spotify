@@ -16,22 +16,27 @@ struct FeedbackThreadData {
 
 DWORD WINAPI feedbackThread(void *data) {
 	FeedbackThreadData *d = static_cast<FeedbackThreadData*>(data);
-	while (true) {
-		const std::string cmd = d->from.takeCommand();
-		if ("stop" == cmd) {
-			return 0;
-		} else if ("sync" == cmd) {
-		} else if ("user" == cmd) {
-			d->to.arg(d->username());
-		} else if ("pass" == cmd) {
-			d->to.arg(d->password());
-		} else if ("excp" == cmd) {
-			console::formatter() << "bang! " << d->from.takeString().c_str();
-		} else if ("warn" == cmd) {
-			console::formatter() << "log " << d->from.takeString().c_str();
-		} else {
-			console::formatter() << "invalid command: " << cmd.c_str();
+	try {
+		while (true) {
+			const std::string cmd = d->from.takeCommand();
+			if ("stop" == cmd) {
+				return 0;
+			} else if ("sync" == cmd) {
+			} else if ("user" == cmd) {
+				d->to.arg(d->username());
+			} else if ("pass" == cmd) {
+				d->to.arg(d->password());
+			} else if ("excp" == cmd) {
+				console::formatter() << "bang! " << d->from.takeString().c_str();
+			} else if ("warn" == cmd) {
+				console::formatter() << "log " << d->from.takeString().c_str();
+			} else {
+				console::formatter() << "invalid command: " << cmd.c_str();
+			}
 		}
+	} catch (std::exception &e) {
+		console::formatter() << "feedback thread DYING: " << e.what();
+		return 17;
 	}
 }
 
@@ -61,10 +66,12 @@ public:
 	SpotifyApiClient(stringfunc_t username, stringfunc_t password) :
 			child(NULL), thread(NULL),
 			defaultCheck([&](){
-				if (WAIT_OBJECT_0 != WaitForSingleObject(child, 0))
+#if WHY_DO_THESE_NOT_WORK
+				if (WAIT_TIMEOUT == WaitForSingleObject(child, 0))
 					throw std::exception("child went away");
-				if (WAIT_OBJECT_0 != WaitForSingleObject(thread, 0))
+				if (WAIT_TIMEOUT == WaitForSingleObject(thread, 0))
 					throw std::exception("thread went away");
+#endif
 			}),
 			toChild(pp(new Pipe())),
 			fromChild(pp(new Pipe())),
@@ -134,7 +141,7 @@ public:
 
 	virtual Gentry *take(nullary_t check = [](){}) {
 		to.sync().operation("take");
-		return from.sync().returnGentry();
+		return from.sync(check).returnGentry(check);
 	}
 
 	virtual void free(Gentry *entry) {
