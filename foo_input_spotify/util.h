@@ -193,7 +193,9 @@ struct PipeOut {
 struct PipeIn {
 	HANDLE h;
 	std::function<void()> check;
+	HANDLE completionEvent;
 	PipeIn(HANDLE h, std::function<void()> check) : h(h), check(check) {
+		completionEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
 	}
 
 	PipeIn& sync(nullary_t additionalCheck = [](){}) {
@@ -246,20 +248,31 @@ struct PipeIn {
 	std::string take(const size_t len, nullary_t additionalCheck = [](){}) {
 		std::vector<char> buf(len);
 		DWORD read = 0;
-		DWORD avail = 0;
-		DWORD sleep = 5;
-		do {
-			if (!PeekNamedPipe(h, NULL, 0, NULL, &avail, NULL))
-				throw win32exception("couldn't peek");
-			check();
-			additionalCheck();
-			//Sleep(sleep);
-			if (sleep < 200)
-				;//sleep += 10;
-		} while (avail < len);
+		OVERLAPPED o = {};
+		o.hEvent = completionEvent;
 
-		if (!ReadFile(h, buf.data(), len, &read, NULL))
+		if (!ReadFile(h, buf.data(), len, NULL, &o))
 			throw win32exception("couldn't read pipe");
+
+		[&, this]() {
+			while (true) {
+				check();
+				additionalCheck();
+
+				switch (WaitForSingleObject(completionEvent, 2000)) {
+				case WAIT_OBJECT_0:
+					return;
+				case WAIT_TIMEOUT:
+					continue;
+				default:
+					CancelIo(h);
+					throw win32exception("waiting for read failed");
+				}
+			}
+		}();
+
+		if (!GetOverlappedResult(h, &o, &read, FALSE))
+			throw win32exception("waiting for read failed");
 
 		if (read != len)
 			throw std::exception("Not entirely read");

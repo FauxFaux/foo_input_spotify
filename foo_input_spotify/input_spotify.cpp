@@ -56,7 +56,9 @@ public:
 	void open( service_ptr_t<file> m_file, const char * p_path, t_input_open_reason p_reason, abort_callback & p_abort )
 	{
 		if ( p_reason == input_open_info_write ) throw exception_io_data();
-		api->load(p_path, [&]() { p_abort.check(); });
+		api->load(p_path, [&]() { 
+			p_abort.check();
+		});
 	}
 
 	void get_info(t_int32 subsong, file_info & p_info, abort_callback & p_abort )

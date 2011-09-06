@@ -121,22 +121,22 @@ public:
 
 	virtual void load(std::string url, nullary_t check = [](){}) {
 		to.sync().operation("load").arg(url);
-		from.sync().checkReturn();
+		from.sync(check).checkReturn(check);
 	}
 
 	virtual void freeTracks(nullary_t check = [](){}) {
 		to.sync().operation("frtr");
-		from.sync().checkReturn();
+		from.sync(check).checkReturn(check);
 	}
 
 	virtual void initialise(int subsong, nullary_t check = [](){}) {
 		to.sync().operation("init").arg(subsong);
-		from.sync().checkReturn();
+		from.sync(check).checkReturn(check);
 	}
 
 	virtual uint32_t currentSubsongCount(nullary_t check = [](){}) {
 		to.sync().operation("ssct");
-		return from.sync().returnUint32_t();
+		return from.sync(check).returnUint32_t(check);
 	}
 
 	virtual Gentry *take(nullary_t check = [](){}) {
