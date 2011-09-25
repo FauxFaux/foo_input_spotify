@@ -19,6 +19,8 @@ extern "C" {
 
 SpotifySession ss;
 
+bool hackySingleton = false;
+
 class InputSpotify
 {
 	t_filestats m_stats;
@@ -41,10 +43,14 @@ class InputSpotify
 public:
 
 	InputSpotify() {
+		if (hackySingleton)
+			throw exception_io_data("foo_input_spotify is already in use, and can't copy, sorry");
+		hackySingleton = true;
 	}
 
 	~InputSpotify() {
 		freeTracks();
+		hackySingleton = false;
 	}
 
 	void open( service_ptr_t<file> m_file, const char * p_path, t_input_open_reason p_reason, abort_callback & p_abort )
