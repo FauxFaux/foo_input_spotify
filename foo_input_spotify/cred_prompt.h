@@ -1,4 +1,5 @@
 #include <vector>
+#include "../../pfc/pfc.h"
 
 const size_t CRED_BUF_SIZE = 0xff;
 
@@ -12,4 +13,4 @@ struct CredPromptResult {
 	bool save;
 };
 
-CredPromptResult credPrompt();
+CredPromptResult credPrompt(pfc::string8 msg);

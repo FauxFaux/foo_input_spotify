@@ -64,7 +64,7 @@ void CALLBACK play_token_lost(sp_session *sess);
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context);
 
 SpotifySession::SpotifySession() :
-		loggedInEvent(CreateEvent(NULL, TRUE, FALSE, NULL)),
+		loggedInEvent(CreateEvent(NULL, FALSE, FALSE, NULL)),
 		threadData(spotifyCS) {
 
 	processEventsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -142,12 +142,18 @@ CriticalSection &SpotifySession::getSpotifyCS() {
 	return spotifyCS;
 }
 
-void SpotifySession::waitForLogin() {
+pfc::string8 SpotifySession::waitForLogin() {
 	WaitForSingleObject(loggedInEvent, INFINITE);
+	return loginResult;
 }
 
 void SpotifySession::loggedIn(sp_error err) {
-	alertIfFailure("logging in", err);
+	if (SP_ERROR_OK == err)
+		loginResult = "";
+	else {
+		pfc::string8 msg = "logging in";
+		loginResult = doctor(msg, err);
+	}
 	SetEvent(loggedInEvent);
 }
 
@@ -158,17 +164,26 @@ void SpotifySession::processEvents() {
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context) {
 	SpotifySession *ss = static_cast<SpotifySession *>(param);
-	{
-		
-		sp_session *sess = ss->getAnyway();
-		LockedCS lock(ss->getSpotifyCS());
-		if (SP_ERROR_NO_CREDENTIALS == sp_session_relogin(sess)) {
-			CredPromptResult cpr = credPrompt();
-			sp_session_login(sess, cpr.un.data(), cpr.pw.data(), cpr.save);
+	sp_session *sess = ss->getAnyway();
+	pfc::string8 msg = "Enter your username and password to connect to Spotify";
+
+	while (true) {
+		{
+			LockedCS lock(ss->getSpotifyCS());
+			if (SP_ERROR_NO_CREDENTIALS == sp_session_relogin(sess)) {
+				try {
+					CredPromptResult cpr = credPrompt(msg);
+					sp_session_login(sess, cpr.un.data(), cpr.pw.data(), cpr.save);
+				} catch (std::exception &e) {
+					alert(e.what());
+					return FALSE;
+				}
+			}
 		}
+		msg = ss->waitForLogin();
+		if (msg.is_empty())
+			return TRUE;
 	}
-	ss->waitForLogin();
-	return TRUE;
 }
 
 /** sp_session_userdata is assumed to be thread safe. */

@@ -1,22 +1,25 @@
 #include "util.h"
 #include "cred_prompt.h"
 
-#include "../../pfc/pfc.h"
-
 #include <windows.h>
 #include <WinCred.h>
 #include <Ntsecapi.h>
 
-CredPromptResult credPrompt() {
+
+
+CredPromptResult credPrompt(pfc::string8 msg) {
 	ULONG authPackage = 0;
-	void *outAuth = NULL;
-	DWORD outAuthCnt = 0;
 	BOOL save = FALSE;
 
 	CREDUI_INFO info = {};
 	info.cbSize = sizeof(CREDUI_INFO);
 	info.pszCaptionText = L"Enter Spotify Password";
-	info.pszMessageText = L"Enter your username and password to connect to Spotify";
+	WCHAR messageText[CRED_BUF_SIZE] = {};
+	pfc::stringcvt::convert_utf8_to_wide(messageText, CRED_BUF_SIZE, msg.toString(), msg.length());
+	info.pszMessageText = messageText;
+
+	void *outAuth = NULL;
+	DWORD outAuthCnt = 0;
 
 	DWORD res = CredUIPromptForWindowsCredentials(&info, 0, &authPackage,
 		NULL, 0,
@@ -47,5 +50,7 @@ CredPromptResult credPrompt() {
 	pfc::stringcvt::convert_wide_to_utf8(cpr.un.data(), CRED_BUF_SIZE, username, usernameCnt);
 	pfc::stringcvt::convert_wide_to_utf8(cpr.pw.data(), CRED_BUF_SIZE, password, passwordCnt);
 	cpr.save = save ? true : false;
+	SecureZeroMemory(outAuth, outAuthCnt);
+	CoTaskMemFree(outAuth);
 	return cpr;
 }

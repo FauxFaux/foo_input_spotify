@@ -19,6 +19,7 @@ class SpotifySession {
 	SpotifyThreadData threadData;
 	CriticalSection spotifyCS;
 	HANDLE processEventsEvent;
+	pfc::string8 loginResult;
 public:
 	Buffer buf;
 
@@ -32,7 +33,7 @@ public:
 
 	CriticalSection &getSpotifyCS();
 
-	void waitForLogin();
+	pfc::string8 waitForLogin();
 
 	void loggedIn(sp_error err);
 
