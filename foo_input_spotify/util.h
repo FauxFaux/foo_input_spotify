@@ -6,6 +6,37 @@
 
 #include <windows.h>
 #include "boost/noncopyable.hpp"
+#include <string>
+#include <sstream>
+
+struct win32exception : std::exception {
+	std::string makeMsg(const std::string &cause, DWORD err) {
+		std::stringstream ss;
+		ss << cause << ", win32: " << err << " (" << std::hex << err << "): ???";
+		return ss.str();
+#if ARGH
+		LPVOID lpMsgBuf;
+		FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				err,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR) &lpMsgBuf,
+				0, NULL );
+		LocalFree(lpMsgBuf);
+//		pfc::stringcvt::string_utf8_from_wide((wchar_t*)lpMsgBuf, wcslen((wchar_t*)lpMsgBuf));
+//		WideCharToMultiByte(CP_UTF8, 0, lpMsgBuf, -1, buf.data(), buf.size(), NULL, NULL);
+#endif
+	}
+
+	win32exception(std::string cause) : std::exception(makeMsg(cause, GetLastError()).c_str()) {
+	}
+
+	win32exception(std::string cause, DWORD err) : std::exception(makeMsg(cause, err).c_str()) {
+	}
+};
 
 struct Gentry {
 	void *data;

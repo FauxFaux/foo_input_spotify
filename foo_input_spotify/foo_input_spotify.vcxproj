@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="cred_prompt.cpp" />
     <ClCompile Include="input_spotify.cpp" />
     <ClCompile Include="key-930.c" />
     <ClCompile Include="SpotifySession.cpp" />
@@ -18,6 +19,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="boost\noncopyable.hpp" />
+    <ClInclude Include="cred_prompt.h" />
     <ClInclude Include="SpotifySession.h" />
     <ClInclude Include="util.h" />
   </ItemGroup>
