@@ -7,8 +7,6 @@
 #include <WinCred.h>
 #include <Ntsecapi.h>
 
-#include <vector>
-
 CredPromptResult credPrompt() {
 	ULONG authPackage = 0;
 	void *outAuth = NULL;

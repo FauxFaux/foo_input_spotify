@@ -64,7 +64,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>..\foobar-sdk\foobar2000\shared\shared.lib;..\foobar-sdk\foobar2000\SDK\$(Configuration)\foobar2000_sdk.lib;..\foobar-sdk\foobar2000\foobar2000_component_client\$(Configuration)\foobar2000_component_client.lib;..\$(Configuration)\pfc.lib;..\libspotify\lib\libspotify.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\foobar-sdk\foobar2000\shared\shared.lib;..\foobar-sdk\foobar2000\SDK\$(Configuration)\foobar2000_sdk.lib;..\foobar-sdk\foobar2000\foobar2000_component_client\$(Configuration)\foobar2000_component_client.lib;..\$(Configuration)\pfc.lib;..\libspotify\lib\spotify.lib;credui.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
     </Link>
   </ItemDefinitionGroup>
@@ -79,7 +79,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>..\foobar-sdk\foobar2000\shared\shared.lib;..\foobar-sdk\foobar2000\SDK\$(Configuration)\foobar2000_sdk.lib;..\foobar-sdk\foobar2000\foobar2000_component_client\$(Configuration)\foobar2000_component_client.lib;..\$(Configuration)\pfc.lib;..\libspotify\lib\libspotify.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\foobar-sdk\foobar2000\shared\shared.lib;..\foobar-sdk\foobar2000\SDK\$(Configuration)\foobar2000_sdk.lib;..\foobar-sdk\foobar2000\foobar2000_component_client\$(Configuration)\foobar2000_component_client.lib;..\$(Configuration)\pfc.lib;..\libspotify\lib\spotify.lib;credui.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
     </Link>
   </ItemDefinitionGroup>
