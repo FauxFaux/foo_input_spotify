@@ -178,7 +178,7 @@ BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *contex
 		
 		sp_session *sess = ss->getAnyway();
 		LockedCS lock(ss->getSpotifyCS());
-		sp_session_login(sess, username.get_ptr(), password.get_ptr());
+		sp_session_login(sess, username.get_ptr(), password.get_ptr(), true);
 	}
 	ss->waitForLogin();
 	return TRUE;
