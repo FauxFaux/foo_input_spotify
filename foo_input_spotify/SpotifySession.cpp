@@ -10,6 +10,8 @@
 
 #include "SpotifySession.h"
 
+#include "cred_prompt.h"
+
 extern "C" {
 	extern const uint8_t g_appkey[];
 	extern const size_t g_appkey_size;
@@ -49,18 +51,6 @@ void alertIfFailure(pfc::string8 msg, sp_error err) {
 		return;
 	alert(doctor(msg, err));
 }
-
-// {FDE57F91-397C-45F6-B907-A40E378DDB7A}
-static const GUID spotifyUsernameGuid = 
-{ 0xfde57f91, 0x397c, 0x45f6, { 0xb9, 0x7, 0xa4, 0xe, 0x37, 0x8d, 0xdb, 0x7a } };
-
-// {543780A4-2EC2-4EFE-966E-4AC491ACADBA}
-static const GUID spotifyPasswordGuid = 
-{ 0x543780a4, 0x2ec2, 0x4efe, { 0x96, 0x6e, 0x4a, 0xc4, 0x91, 0xac, 0xad, 0xba } };
-
-static advconfig_string_factory_MT spotifyUsername("Spotify Username", spotifyUsernameGuid, advconfig_entry::guid_root, 1, "", 0);
-static advconfig_string_factory_MT spotifyPassword("Spotify Password (plaintext lol)", spotifyPasswordGuid, advconfig_entry::guid_root, 2, "", 0);
-
 
 void CALLBACK log_message(sp_session *sess, const char *error);
 void CALLBACK message_to_user(sp_session *sess, const char *error);
@@ -167,18 +157,15 @@ void SpotifySession::processEvents() {
 
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context) {
-	pfc::string8 username;
-	spotifyUsername.get(username);
-
-	pfc::string8 password;
-	spotifyPassword.get(password);
-
 	SpotifySession *ss = static_cast<SpotifySession *>(param);
 	{
 		
 		sp_session *sess = ss->getAnyway();
 		LockedCS lock(ss->getSpotifyCS());
-		sp_session_login(sess, username.get_ptr(), password.get_ptr(), true);
+		if (SP_ERROR_NO_CREDENTIALS == sp_session_relogin(sess)) {
+			CredPromptResult cpr = credPrompt();
+			sp_session_login(sess, cpr.un.data(), cpr.pw.data(), cpr.save);
+		}
 	}
 	ss->waitForLogin();
 	return TRUE;
