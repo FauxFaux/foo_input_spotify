@@ -3,14 +3,18 @@
 
 const size_t CRED_BUF_SIZE = 0xff;
 
-struct CredPromptResult {
+struct CredPromptResult : boost::noncopyable {
 	CredPromptResult() : 
 		un(std::vector<char>(CRED_BUF_SIZE)), 
 		pw(std::vector<char>(CRED_BUF_SIZE)) {
+	}
+
+	~CredPromptResult() {
+		SecureZeroMemory(pw.data(), pw.size());
 	}
 
 	std::vector<char> un, pw;
 	bool save;
 };
 
-CredPromptResult credPrompt(pfc::string8 msg);
+std::auto_ptr<CredPromptResult> credPrompt(pfc::string8 msg);

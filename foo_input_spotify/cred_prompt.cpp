@@ -5,11 +5,11 @@
 #include <WinCred.h>
 #include <Ntsecapi.h>
 
+std::vector<WCHAR> previousUsername;
+BOOL save = FALSE;
 
-
-CredPromptResult credPrompt(pfc::string8 msg) {
+std::auto_ptr<CredPromptResult> credPrompt(pfc::string8 msg) {
 	ULONG authPackage = 0;
-	BOOL save = FALSE;
 
 	CREDUI_INFO info = {};
 	info.cbSize = sizeof(CREDUI_INFO);
@@ -21,8 +21,18 @@ CredPromptResult credPrompt(pfc::string8 msg) {
 	void *outAuth = NULL;
 	DWORD outAuthCnt = 0;
 
+	const size_t IN_AUTH_BUF_SIZE = 4096;
+	BYTE inAuthBuf[IN_AUTH_BUF_SIZE];
+	BYTE *inAuth = &inAuthBuf[0];
+	DWORD inAuthCnt = IN_AUTH_BUF_SIZE;
+
+	if (!CredPackAuthenticationBuffer(0, previousUsername.data(), L"", inAuth, &inAuthCnt)) {
+		inAuthCnt = 0;
+		inAuth = NULL;
+	}
+
 	DWORD res = CredUIPromptForWindowsCredentials(&info, 0, &authPackage,
-		NULL, 0,
+		inAuth, inAuthCnt,
 		&outAuth, &outAuthCnt, &save, 
 		CREDUIWIN_GENERIC | CREDUIWIN_CHECKBOX
 	);
@@ -46,10 +56,12 @@ CredPromptResult credPrompt(pfc::string8 msg) {
 		throw win32exception("couldn't unpack credentials");
 	}
 
-	CredPromptResult cpr;
-	pfc::stringcvt::convert_wide_to_utf8(cpr.un.data(), CRED_BUF_SIZE, username, usernameCnt);
-	pfc::stringcvt::convert_wide_to_utf8(cpr.pw.data(), CRED_BUF_SIZE, password, passwordCnt);
-	cpr.save = save ? true : false;
+	previousUsername = std::vector<WCHAR>(username, username + usernameCnt);
+
+	std::auto_ptr<CredPromptResult> cpr(new CredPromptResult());
+	pfc::stringcvt::convert_wide_to_utf8(cpr->un.data(), CRED_BUF_SIZE, username, usernameCnt);
+	pfc::stringcvt::convert_wide_to_utf8(cpr->pw.data(), CRED_BUF_SIZE, password, passwordCnt);
+	cpr->save = save ? true : false;
 	SecureZeroMemory(outAuth, outAuthCnt);
 	CoTaskMemFree(outAuth);
 	return cpr;
