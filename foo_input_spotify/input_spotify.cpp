@@ -152,7 +152,7 @@ public:
 	{
 		ss.ensureDecoder(this);
 
-		Gentry *e = ss.buf.take();
+		Gentry *e = ss.buf.take(&p_abort);
 
 		if (NULL == e->data) {
 			ss.buf.free(e);

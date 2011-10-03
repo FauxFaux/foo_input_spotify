@@ -34,13 +34,15 @@ bool Buffer::isFull() {
 
 void Buffer::flush() {
 	while (entries > 0)
-		free(take());
+		free(take(NULL));
 }
 
-Gentry *Buffer::take() {
+Gentry *Buffer::take(abort_callback *p_abort) {
 	LockedCS lock(bufferLock);
 	while (entries == 0) {
-		SleepConditionVariableCS(&bufferNotEmpty, &bufferLock.cs, INFINITE);
+		SleepConditionVariableCS(&bufferNotEmpty, &bufferLock.cs, 200);
+		if (p_abort)
+			p_abort->check();
 	}
 
 	Gentry *e = entry[ptr++];

@@ -8,6 +8,7 @@
 #include "boost/noncopyable.hpp"
 #include <string>
 #include <sstream>
+#include <foobar2000.h>
 
 struct win32exception : std::exception {
 	std::string makeMsg(const std::string &cause, DWORD err) {
@@ -97,6 +98,6 @@ struct Buffer : boost::noncopyable {
 	void add(void *data, size_t size, int sampleRate, int channels);
 	bool isFull();
 	void flush();
-	Gentry *take();
+	Gentry *take(abort_callback *p_abort);
 	void free(Gentry *e);
 };
