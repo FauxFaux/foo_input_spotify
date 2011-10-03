@@ -19,6 +19,10 @@ extern "C" {
 
 SpotifySession ss;
 
+void CALLBACK notifyEvent(sp_albumbrowse *result, void *userdata) {
+	SetEvent(userdata);
+}
+
 class InputSpotify
 {
 	t_filestats m_stats;
@@ -70,31 +74,54 @@ public:
 
 			if (NULL == ptr) {
 				sp_playlist *playlist = sp_playlist_create(sess, link);
-				if (NULL == playlist)
-					throw exception_io_data("Apparently not a track or a playlist");
+				if (NULL == playlist) {
+					sp_album *album = sp_link_as_album(link);
+					if (NULL == album)
+						throw exception_io_data("Apparently not a track, playlist or album");
+					HANDLE ev = CreateEvent(NULL, FALSE, FALSE, NULL);
+					sp_albumbrowse *browse = sp_albumbrowse_create(sess, album, &notifyEvent, ev);
+					while (WAIT_OBJECT_0 != WaitForSingleObject(ev, 200)) {
+						lock.dropAndReacquire(20);
+						if (p_abort.is_aborting()) {
+							CloseHandle(ev);
+							p_abort.check();
+						}
+					}
 
-				int count;
-				// XXX I don't know what we're waiting for here; sp_playlist_num_tracks returning 0 is undocumented,
-				// there's no sp_playlist_error() to return not ready..
-				// foobar can't cope with an empty entry, anyway, so we have to get something or error out
-				for (int retries = 0; retries < 50; ++retries) {
-					count = sp_playlist_num_tracks(playlist);
-					if (0 != count)
-						break;
+					const int count = sp_albumbrowse_num_tracks(browse);
+					if (0 == count)
+						throw exception_io_data("empty (or failed to load?) album");
 
-					lock.dropAndReacquire(100);
-					p_abort.check();
+					for (int i = 0; i < count; ++i) {
+						sp_track *track = sp_albumbrowse_track(browse, i);
+						sp_track_add_ref(track);
+						t.push_back(track);
+					}
+					sp_albumbrowse_release(browse);
+				} else {
+					int count;
+					// XXX I don't know what we're waiting for here; sp_playlist_num_tracks returning 0 is undocumented,
+					// there's no sp_playlist_error() to return not ready..
+					// foobar can't cope with an empty entry, anyway, so we have to get something or error out
+					for (int retries = 0; retries < 50; ++retries) {
+						count = sp_playlist_num_tracks(playlist);
+						if (0 != count)
+							break;
+
+						lock.dropAndReacquire(100);
+						p_abort.check();
+					}
+
+					if (0 == count)
+						throw exception_io_data("empty (or failed to load?) playlist");
+
+					for (int i = 0; i < count; ++i) {
+						sp_track *track = sp_playlist_track(playlist, i);
+						sp_track_add_ref(track); // or the playlist will free it
+						t.push_back(track);
+					}
+					sp_playlist_release(playlist);
 				}
-
-				if (0 == count)
-					throw exception_io_data("empty (or failed to load?) playlist");
-
-				for (int i = 0; i < count; ++i) {
-					sp_track *track = sp_playlist_track(playlist, i);
-					sp_track_add_ref(track); // or the playlist will free it
-					t.push_back(track);
-				}
-				sp_playlist_release(playlist);
 			} else
 				t.push_back(ptr);
 		}
