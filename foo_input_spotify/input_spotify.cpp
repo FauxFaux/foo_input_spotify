@@ -68,16 +68,9 @@ public:
 
 			freeTracks();
 
-			sp_track *ptr = sp_link_as_track(link);
-
-			// do we need to free link here, above or never?
-
-			if (NULL == ptr) {
-				sp_playlist *playlist = sp_playlist_create(sess, link);
-				if (NULL == playlist) {
+			switch(sp_link_type(link)) {
+				case SP_LINKTYPE_ALBUM: {
 					sp_album *album = sp_link_as_album(link);
-					if (NULL == album)
-						throw exception_io_data("Apparently not a track, playlist or album");
 					HANDLE ev = CreateEvent(NULL, FALSE, FALSE, NULL);
 					sp_albumbrowse *browse = sp_albumbrowse_create(sess, album, &notifyEvent, ev);
 					while (WAIT_OBJECT_0 != WaitForSingleObject(ev, 200)) {
@@ -87,6 +80,7 @@ public:
 							p_abort.check();
 						}
 					}
+					CloseHandle(ev);
 
 					const int count = sp_albumbrowse_num_tracks(browse);
 					if (0 == count)
@@ -98,7 +92,10 @@ public:
 						t.push_back(track);
 					}
 					sp_albumbrowse_release(browse);
-				} else {
+				} break;
+
+				case SP_LINKTYPE_PLAYLIST: {
+					sp_playlist *playlist = sp_playlist_create(sess, link);
 					int count;
 					// XXX I don't know what we're waiting for here; sp_playlist_num_tracks returning 0 is undocumented,
 					// there's no sp_playlist_error() to return not ready..
@@ -121,9 +118,19 @@ public:
 						t.push_back(track);
 					}
 					sp_playlist_release(playlist);
-				}
-			} else
-				t.push_back(ptr);
+				} break;
+
+				case SP_LINKTYPE_TRACK: {
+					sp_track *ptr = sp_link_as_track(link);
+					sp_track_add_ref(ptr);
+					t.push_back(ptr);
+				} break;
+
+				default:
+					sp_link_release(link);
+					throw exception_io_data("Only track, playlist and album URIs are supported");
+			}
+			sp_link_release(link);
 		}
 
 		while (true) {
@@ -142,8 +149,7 @@ public:
 					break;
 			}
 
-			Sleep(50);
-			p_abort.check();
+			p_abort.sleep(0.05);
 		}
 	}
 
@@ -155,7 +161,6 @@ public:
 		p_info.meta_add("ARTIST", sp_artist_name(sp_track_artist(tr, 0)));
 		p_info.meta_add("ALBUM", sp_album_name(sp_track_album(tr)));
 		p_info.meta_add("TITLE", sp_track_name(tr));
-		p_info.meta_add("URL", url.c_str());
 	}
 
 	t_filestats get_file_stats( abort_callback & p_abort )

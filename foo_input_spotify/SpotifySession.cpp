@@ -43,7 +43,7 @@ void assertSucceeds(pfc::string8 msg, sp_error err) {
 	if (SP_ERROR_OK == err)
 		return;
 
-	throw pfc::exception(doctor(msg, err));
+	throw exception_io_data(doctor(msg, err));
 }
 
 void alertIfFailure(pfc::string8 msg, sp_error err) {
