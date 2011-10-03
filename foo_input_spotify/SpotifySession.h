@@ -20,6 +20,7 @@ class SpotifySession {
 	CriticalSection spotifyCS;
 	HANDLE processEventsEvent;
 	pfc::string8 loginResult;
+	__declspec(align(2)) volatile PVOID decoderOwner;
 public:
 	Buffer buf;
 
@@ -38,6 +39,11 @@ public:
 	void loggedIn(sp_error err);
 
 	void processEvents();
+
+	void takeDecoder(void *owner);
+	void ensureDecoder(void *owner);
+	void releaseDecoder(void *owner);
+	bool hasDecoder(void *owner);
 };
 
 void assertSucceeds(pfc::string8 msg, sp_error err);

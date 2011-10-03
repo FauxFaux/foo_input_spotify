@@ -45,6 +45,7 @@ public:
 
 	~InputSpotify() {
 		freeTracks();
+		ss.releaseDecoder(this);
 	}
 
 	void open( service_ptr_t<file> m_file, const char * p_path, t_input_open_reason p_reason, abort_callback & p_abort )
@@ -137,6 +138,8 @@ public:
 
 	void decode_initialize(t_int32 subsong, unsigned p_flags, abort_callback & p_abort )
 	{
+		ss.takeDecoder(this);
+
 		ss.buf.flush();
 		sp_session *sess = ss.get();
 
@@ -147,10 +150,13 @@ public:
 
 	bool decode_run( audio_chunk & p_chunk, abort_callback & p_abort )
 	{
+		ss.ensureDecoder(this);
+
 		Gentry *e = ss.buf.take();
 
 		if (NULL == e->data) {
 			ss.buf.free(e);
+			ss.releaseDecoder(this);
 			return false;
 		}
 
@@ -172,6 +178,8 @@ public:
 
 	void decode_seek( double p_seconds,abort_callback & p_abort )
 	{
+		ss.ensureDecoder(this);
+
 		ss.buf.flush();
 		sp_session *sess = ss.get();
 		LockedCS lock(ss.getSpotifyCS());

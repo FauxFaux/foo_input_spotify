@@ -65,7 +65,7 @@ BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *contex
 
 SpotifySession::SpotifySession() :
 		loggedInEvent(CreateEvent(NULL, FALSE, FALSE, NULL)),
-		threadData(spotifyCS) {
+		threadData(spotifyCS), decoderOwner(NULL) {
 
 	processEventsEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
@@ -161,6 +161,28 @@ void SpotifySession::processEvents() {
 	SetEvent(processEventsEvent);
 }
 
+bool SpotifySession::hasDecoder(void *owner) {
+	return decoderOwner == owner;
+}
+
+void SpotifySession::takeDecoder(void *owner) {
+	if (!hasDecoder(NULL))
+		throw exception_io_data("Someone else is already decoding");
+ 
+	InterlockedCompareExchangePointer(&decoderOwner, owner, NULL);
+
+	if (!hasDecoder(owner))
+		throw exception_io_data("Someone else beat us to the decoder");
+}
+
+void SpotifySession::ensureDecoder(void *owner) {
+	if (!hasDecoder(owner))
+		throw exception_io_data("bugcheck: we should own the decoder...");
+}
+
+void SpotifySession::releaseDecoder(void *owner) {
+	InterlockedCompareExchangePointer(&decoderOwner, NULL, owner);
+}
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context) {
 	SpotifySession *ss = static_cast<SpotifySession *>(param);
