@@ -30,11 +30,11 @@ public:
 
 	sp_session *getAnyway();
 
-	sp_session *get();
+	sp_session *get(abort_callback & p_abort);
 
 	CriticalSection &getSpotifyCS();
 
-	pfc::string8 waitForLogin();
+	pfc::string8 waitForLogin(abort_callback & p_abort);
 
 	void loggedIn(sp_error err);
 

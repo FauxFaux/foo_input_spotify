@@ -130,10 +130,17 @@ sp_session *SpotifySession::getAnyway() {
 	return sp;
 }
 
-sp_session *SpotifySession::get() {
+struct SpotifySessionData {
+	SpotifySessionData(abort_callback & p_abort, SpotifySession *ss) : p_abort(p_abort), ss(ss) {}
+	abort_callback & p_abort;
+	SpotifySession *ss;
+};
+
+sp_session *SpotifySession::get(abort_callback & p_abort) {
+	SpotifySessionData ssd(p_abort, this);
 	InitOnceExecuteOnce(&initOnce,
 		makeSpotifySession,
-		this,
+		&ssd,
 		NULL);
 	return getAnyway();
 }
@@ -142,8 +149,11 @@ CriticalSection &SpotifySession::getSpotifyCS() {
 	return spotifyCS;
 }
 
-pfc::string8 SpotifySession::waitForLogin() {
-	WaitForSingleObject(loggedInEvent, INFINITE);
+/** Does /not/ throw exception_io_data, unlike normal */
+pfc::string8 SpotifySession::waitForLogin(abort_callback & p_abort) {
+	while (WAIT_OBJECT_0 != WaitForSingleObject(loggedInEvent, 200))
+		if (p_abort.is_aborting())
+			return "user aborted";
 	return loginResult;
 }
 
@@ -185,7 +195,8 @@ void SpotifySession::releaseDecoder(void *owner) {
 }
 
 BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *context) {
-	SpotifySession *ss = static_cast<SpotifySession *>(param);
+	SpotifySessionData *ssd = static_cast<SpotifySessionData *>(param);
+	SpotifySession *ss = ssd->ss;
 	sp_session *sess = ss->getAnyway();
 	pfc::string8 msg = "Enter your username and password to connect to Spotify";
 
@@ -202,7 +213,7 @@ BOOL CALLBACK makeSpotifySession(PINIT_ONCE initOnce, PVOID param, PVOID *contex
 				}
 			}
 		}
-		msg = ss->waitForLogin();
+		msg = ss->waitForLogin(ssd->p_abort);
 		if (msg.is_empty())
 			return TRUE;
 	}

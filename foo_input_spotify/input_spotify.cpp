@@ -53,7 +53,7 @@ public:
 		if ( p_reason == input_open_info_write ) throw exception_io_data();
 		url = p_path;
 
-		sp_session *sess = ss.get();
+		sp_session *sess = ss.get(p_abort);
 
 		{
 			LockedCS lock(ss.getSpotifyCS());
@@ -141,7 +141,7 @@ public:
 		ss.takeDecoder(this);
 
 		ss.buf.flush();
-		sp_session *sess = ss.get();
+		sp_session *sess = ss.get(p_abort);
 
 		LockedCS lock(ss.getSpotifyCS());
 		assertSucceeds("load track (including region check)", sp_session_player_load(sess, t.at(subsong)));
@@ -181,7 +181,7 @@ public:
 		ss.ensureDecoder(this);
 
 		ss.buf.flush();
-		sp_session *sess = ss.get();
+		sp_session *sess = ss.get(p_abort);
 		LockedCS lock(ss.getSpotifyCS());
 		sp_session_player_seek(sess, static_cast<int>(p_seconds*1000));
 	}
